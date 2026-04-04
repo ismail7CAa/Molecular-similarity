@@ -1,0 +1,83 @@
+{
+  "dataset_root": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set",
+  "folders": {
+    "conformers_3D": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/conformers_3D",
+    "images_2D": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/images_2D"
+  },
+  "counts": {
+    "pdb_files": 200,
+    "svg_files": 200,
+    "indexed_pdb_groups": 100,
+    "indexed_svg_groups": 100,
+    "complete_pdb_pairs": 100,
+    "complete_svg_pairs": 100,
+    "complete_joint_pairs": 100
+  },
+  "pairing": {
+    "missing_pdb_variants": [],
+    "missing_svg_variants": []
+  },
+  "pdb_statistics": {
+    "atom_count": {
+      "min": 15,
+      "max": 67,
+      "mean": 40.49,
+      "median": 41.5
+    },
+    "heavy_atom_count": {
+      "min": 9,
+      "max": 35,
+      "mean": 20.93,
+      "median": 21.0
+    },
+    "element_frequencies": {
+      "H": 3913,
+      "C": 3125,
+      "O": 617,
+      "N": 336,
+      "F": 40,
+      "S": 32,
+      "CL": 29,
+      "P": 3,
+      "I": 2,
+      "BR": 2
+    }
+  },
+  "examples": {
+    "first_complete_pair": {
+      "pair_id": "001",
+      "pdb": {
+        "a": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/conformers_3D/best_rocs_conformer_001a.pdb",
+        "b": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/conformers_3D/best_rocs_conformer_001b.pdb"
+      },
+      "svg": {
+        "a": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/images_2D/image_molecule_001a.svg",
+        "b": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/original_training_set/images_2D/image_molecule_001b.svg"
+      }
+    },
+    "first_pdb_record": {
+      "a": {
+        "compound_name": "molecule_001a_11",
+        "atom_count": 40,
+        "heavy_atom_count": 17,
+        "element_counts": {
+          "C": 14,
+          "H": 23,
+          "N": 2,
+          "O": 1
+        }
+      },
+      "b": {
+        "compound_name": "molecule_001b",
+        "atom_count": 47,
+        "heavy_atom_count": 20,
+        "element_counts": {
+          "C": 17,
+          "H": 27,
+          "N": 2,
+          "O": 1
+        }
+      }
+    }
+  }
+}
