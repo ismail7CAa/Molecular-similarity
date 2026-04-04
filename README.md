@@ -13,6 +13,16 @@ Initial repository scaffold for the Molecular-similarity project.
 4. Copy the environment template if needed:
    `cp .env.example .env`
 
+## Data Exploration
+
+Use the exploration workspace to describe and inspect datasets before modeling.
+
+1. Activate the environment:
+   `source .venv/bin/activate`
+2. Generate the dataset summary:
+   `python scripts/explore_dataset.py "/path/to/dataset"`
+3. Open the generated report files in `exploration/reports/`
+
 ## CI/CD
 
 This repository includes a starter GitHub Actions pipeline in
