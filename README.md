@@ -21,7 +21,9 @@ Use the exploration workspace to describe and inspect datasets before modeling.
    `source .venv/bin/activate`
 2. Generate the dataset summary:
    `python scripts/explore_dataset.py "/path/to/dataset"`
-3. Open the generated report files in `exploration/reports/`
+3. Build the pair-level dataset index:
+   `python scripts/build_dataset_index.py "/path/to/dataset"`
+4. Open the generated report files in `exploration/reports/`
 
 ## CI/CD
 
