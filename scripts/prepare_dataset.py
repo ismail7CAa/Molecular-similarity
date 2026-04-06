@@ -8,11 +8,15 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.build_dataset_index import build_index
+def _load_build_index():
+    project_root = Path(__file__).resolve().parents[1]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    from scripts.build_dataset_index import build_index
+
+    return build_index
 
 
 DEFAULT_SPLITS = {
@@ -78,6 +82,7 @@ def build_prepared_rows(
     seed: int = 42,
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
     split_ratios = split_ratios or DEFAULT_SPLITS
+    build_index = _load_build_index()
     rows = build_index(dataset_root)
     prepared_rows = [
         dict(row)
