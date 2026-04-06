@@ -25,7 +25,9 @@ Use the exploration workspace to describe and inspect datasets before modeling.
    `python scripts/build_dataset_index.py "/path/to/dataset"`
 4. Prepare reproducible train/val/test splits:
    `python scripts/prepare_dataset.py "/path/to/dataset"`
-5. Open the generated report files in `exploration/reports/`
+5. Run the baseline experiment suite with richer features:
+   `python scripts/run_linear_regression_baseline.py`
+6. Open the generated report files in `exploration/reports/`
 
 ## CI/CD
 

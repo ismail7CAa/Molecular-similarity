@@ -1,0 +1,182 @@
+{
+  "configuration": {
+    "prepared_dataset_path": "exploration/reports/prepared_dataset.json",
+    "labels_path": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/new_dataset/new_dataset.csv",
+    "threshold": 0.5,
+    "numeric_features": [
+      "atom_count_a",
+      "atom_count_b",
+      "heavy_atom_count_a",
+      "heavy_atom_count_b",
+      "atom_count_delta",
+      "heavy_atom_count_delta",
+      "tanimoto_cdk_Extended",
+      "TanimotoCombo",
+      "pchembl_distance"
+    ]
+  },
+  "dataset": {
+    "row_count": 100,
+    "split_counts": {
+      "train": 80,
+      "val": 10,
+      "test": 10
+    }
+  },
+  "metrics": {
+    "train": {
+      "sample_count": 80,
+      "mse": 0.0156,
+      "mae": 0.1008,
+      "accuracy": 0.825,
+      "precision": 0.8444,
+      "recall": 0.8444,
+      "f1": 0.8444,
+      "confusion_matrix": {
+        "tp": 38,
+        "tn": 28,
+        "fp": 7,
+        "fn": 7
+      }
+    },
+    "val": {
+      "sample_count": 10,
+      "mse": 0.0084,
+      "mae": 0.0789,
+      "accuracy": 0.9,
+      "precision": 1.0,
+      "recall": 0.8571,
+      "f1": 0.9231,
+      "confusion_matrix": {
+        "tp": 6,
+        "tn": 3,
+        "fp": 0,
+        "fn": 1
+      }
+    },
+    "test": {
+      "sample_count": 10,
+      "mse": 0.0179,
+      "mae": 0.1174,
+      "accuracy": 0.6,
+      "precision": 0.4,
+      "recall": 0.6667,
+      "f1": 0.5,
+      "confusion_matrix": {
+        "tp": 2,
+        "tn": 4,
+        "fp": 3,
+        "fn": 1
+      }
+    }
+  },
+  "coefficients": {
+    "bias": 0.373947,
+    "weights": {
+      "atom_count_a": -0.022834,
+      "atom_count_b": -0.01741,
+      "heavy_atom_count_a": 0.02144,
+      "heavy_atom_count_b": 0.017139,
+      "atom_count_delta": 0.008083,
+      "heavy_atom_count_delta": -0.006865,
+      "tanimoto_cdk_Extended": 0.140925,
+      "TanimotoCombo": 0.130941,
+      "pchembl_distance": -0.014368,
+      "target_name=5HT2B": 0.062655,
+      "target_name=CYP2D6": 0.150624,
+      "target_name=HERG": 0.139075
+    }
+  },
+  "test_examples": [
+    {
+      "pair_id": "004",
+      "target_name": "HERG",
+      "pair_type": "dis2D,sim3D",
+      "actual_frac_similar": 0.75,
+      "predicted_frac_similar": 0.5888,
+      "actual_label": 1,
+      "predicted_label": 1
+    },
+    {
+      "pair_id": "014",
+      "target_name": "5HT2B",
+      "pair_type": "dis2D,sim3D",
+      "actual_frac_similar": 0.4545,
+      "predicted_frac_similar": 0.4655,
+      "actual_label": 0,
+      "predicted_label": 0
+    },
+    {
+      "pair_id": "015",
+      "target_name": "5HT2B",
+      "pair_type": "dis2D,sim3D",
+      "actual_frac_similar": 0.65,
+      "predicted_frac_similar": 0.4893,
+      "actual_label": 1,
+      "predicted_label": 0
+    },
+    {
+      "pair_id": "018",
+      "target_name": "HERG",
+      "pair_type": "dis2D,sim3D",
+      "actual_frac_similar": 0.4483,
+      "predicted_frac_similar": 0.509,
+      "actual_label": 0,
+      "predicted_label": 1
+    },
+    {
+      "pair_id": "029",
+      "target_name": "CYP2D6",
+      "pair_type": "sim2D,dis3D",
+      "actual_frac_similar": 0.4783,
+      "predicted_frac_similar": 0.6271,
+      "actual_label": 0,
+      "predicted_label": 1
+    },
+    {
+      "pair_id": "032",
+      "target_name": "CYP2D6",
+      "pair_type": "sim2D,dis3D",
+      "actual_frac_similar": 0.381,
+      "predicted_frac_similar": 0.611,
+      "actual_label": 0,
+      "predicted_label": 1
+    },
+    {
+      "pair_id": "036",
+      "target_name": "CYP2D6",
+      "pair_type": "sim2D,dis3D",
+      "actual_frac_similar": 0.6471,
+      "predicted_frac_similar": 0.5421,
+      "actual_label": 1,
+      "predicted_label": 1
+    },
+    {
+      "pair_id": "082",
+      "target_name": "5HT2B",
+      "pair_type": "dis2D,dis3D",
+      "actual_frac_similar": 0.1875,
+      "predicted_frac_similar": 0.0772,
+      "actual_label": 0,
+      "predicted_label": 0
+    },
+    {
+      "pair_id": "087",
+      "target_name": "5HT2B",
+      "pair_type": "dis2D,dis3D",
+      "actual_frac_similar": 0.0,
+      "predicted_frac_similar": 0.0318,
+      "actual_label": 0,
+      "predicted_label": 0
+    },
+    {
+      "pair_id": "095",
+      "target_name": "HERG",
+      "pair_type": "dis2D,dis3D",
+      "actual_frac_similar": 0.0,
+      "predicted_frac_similar": 0.1543,
+      "actual_label": 0,
+      "predicted_label": 0
+    }
+  ]
+}
