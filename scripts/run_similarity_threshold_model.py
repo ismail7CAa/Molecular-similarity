@@ -25,6 +25,171 @@ from scripts.run_linear_regression_baseline import (
 )
 
 
+FEATURE_SET_CANDIDATES = {
+    "core_similarity": [
+        "tanimoto_cdk_Extended",
+        "TanimotoCombo",
+        "pchembl_distance",
+    ],
+    "compact_similarity": [
+        "tanimoto_cdk_Extended",
+        "TanimotoCombo",
+        "pchembl_distance",
+        "atom_count_abs_delta",
+        "heavy_atom_count_abs_delta",
+        "smiles_length_abs_delta",
+        "heavy_atom_ratio_gap",
+    ],
+}
+L2_CANDIDATES = [0.1, 0.5]
+THRESHOLD_CANDIDATES = [0.45, 0.5, 0.55]
+FOLD_COUNT = 5
+TRAINING_EPOCHS = 500
+
+
+def _candidate_numeric_features(
+    feature_set_name: str,
+    all_numeric_feature_names: list[str],
+) -> list[str]:
+    candidate = FEATURE_SET_CANDIDATES[feature_set_name]
+    return list(all_numeric_feature_names if candidate is None else candidate)
+
+
+def _stratified_folds(rows: list[dict[str, object]], fold_count: int = FOLD_COUNT) -> list[list[dict[str, object]]]:
+    positives = sorted(
+        [row for row in rows if int(row["is_similar"]) == 1],
+        key=lambda row: str(row["pair_id"]),
+    )
+    negatives = sorted(
+        [row for row in rows if int(row["is_similar"]) == 0],
+        key=lambda row: str(row["pair_id"]),
+    )
+    folds = [[] for _ in range(fold_count)]
+
+    for index, row in enumerate(positives):
+        folds[index % fold_count].append(row)
+    for index, row in enumerate(negatives):
+        folds[index % fold_count].append(row)
+
+    for fold in folds:
+        fold.sort(key=lambda row: str(row["pair_id"]))
+
+    return folds
+
+
+def _mean_metric(metrics: list[dict[str, object]], metric_name: str) -> float:
+    return sum(float(metric[metric_name]) for metric in metrics) / len(metrics)
+
+
+def _build_split_features(
+    train_rows: list[dict[str, object]],
+    eval_rows: list[dict[str, object]],
+    numeric_feature_names: list[str],
+    categorical_feature_names: list[str],
+) -> tuple[list[list[float]], list[int], list[list[float]], list[int]]:
+    numeric_stats = compute_numeric_stats(train_rows, numeric_feature_names)
+    train_features = [
+        vectorize_row(row, numeric_feature_names, categorical_feature_names, numeric_stats)
+        for row in train_rows
+    ]
+    eval_features = [
+        vectorize_row(row, numeric_feature_names, categorical_feature_names, numeric_stats)
+        for row in eval_rows
+    ]
+    train_targets = [int(row["is_similar"]) for row in train_rows]
+    eval_targets = [int(row["is_similar"]) for row in eval_rows]
+    return train_features, train_targets, eval_features, eval_targets
+
+
+def _evaluate_candidate(
+    development_rows: list[dict[str, object]],
+    numeric_feature_names: list[str],
+    categorical_feature_names: list[str],
+    l2_penalty: float,
+    threshold: float,
+) -> dict[str, object]:
+    fold_count = min(FOLD_COUNT, len(development_rows))
+    folds = [fold for fold in _stratified_folds(development_rows, fold_count=fold_count) if fold]
+    fold_metrics: list[dict[str, object]] = []
+
+    for fold_index, eval_rows in enumerate(folds):
+        train_rows = [
+            row
+            for other_index, fold_rows in enumerate(folds)
+            if other_index != fold_index
+            for row in fold_rows
+        ]
+        train_features, train_targets, eval_features, eval_targets = _build_split_features(
+            train_rows,
+            eval_rows,
+            numeric_feature_names,
+            categorical_feature_names,
+        )
+        bias, weights = train_logistic_regression(
+            train_features,
+            train_targets,
+            learning_rate=0.05,
+            epochs=TRAINING_EPOCHS,
+            l2_penalty=l2_penalty,
+        )
+        probabilities = predict_probabilities(eval_features, bias, weights)
+        fold_metrics.append(evaluate_probabilities(eval_targets, probabilities, threshold=threshold))
+
+    return {
+        "mean_accuracy": round(_mean_metric(fold_metrics, "accuracy"), 4),
+        "mean_precision": round(_mean_metric(fold_metrics, "precision"), 4),
+        "mean_recall": round(_mean_metric(fold_metrics, "recall"), 4),
+        "mean_f1": round(_mean_metric(fold_metrics, "f1"), 4),
+        "mean_brier_score": round(_mean_metric(fold_metrics, "brier_score"), 4),
+        "mean_log_loss": round(_mean_metric(fold_metrics, "log_loss"), 4),
+        "fold_metrics": fold_metrics,
+    }
+
+
+def _choose_best_configuration(
+    development_rows: list[dict[str, object]],
+    all_numeric_feature_names: list[str],
+    all_categorical_feature_names: list[str],
+) -> dict[str, object]:
+    candidate_reports: list[dict[str, object]] = []
+
+    for feature_set_name in FEATURE_SET_CANDIDATES:
+        numeric_feature_names = _candidate_numeric_features(feature_set_name, all_numeric_feature_names)
+        for use_target_categories in (False, True):
+            categorical_feature_names = list(all_categorical_feature_names if use_target_categories else [])
+            for l2_penalty in L2_CANDIDATES:
+                for threshold in THRESHOLD_CANDIDATES:
+                    cv_metrics = _evaluate_candidate(
+                        development_rows,
+                        numeric_feature_names,
+                        categorical_feature_names,
+                        l2_penalty=l2_penalty,
+                        threshold=threshold,
+                    )
+                    candidate_reports.append(
+                        {
+                            "feature_set_name": feature_set_name,
+                            "use_target_categories": use_target_categories,
+                            "threshold": threshold,
+                            "l2_penalty": l2_penalty,
+                            "numeric_feature_names": numeric_feature_names,
+                            "categorical_feature_names": categorical_feature_names,
+                            "cv_metrics": cv_metrics,
+                        }
+                    )
+
+    candidate_reports.sort(
+        key=lambda candidate: (
+            float(candidate["cv_metrics"]["mean_f1"]),
+            float(candidate["cv_metrics"]["mean_accuracy"]),
+            -float(candidate["cv_metrics"]["mean_log_loss"]),
+            -float(candidate["cv_metrics"]["mean_brier_score"]),
+        ),
+        reverse=True,
+    )
+    return candidate_reports[0]
+
+
 def build_report(
     prepared_dataset_path: Path,
     labels_path: Path,
@@ -35,31 +200,38 @@ def build_report(
     modeling_rows = build_modeling_rows(prepared_rows, similarity_labels, threshold=threshold)
     split_to_rows = split_rows(modeling_rows)
 
-    numeric_feature_names, categorical_feature_names = build_feature_names(modeling_rows)
-    numeric_stats = compute_numeric_stats(split_to_rows["train"], numeric_feature_names)
+    all_numeric_feature_names, all_categorical_feature_names = build_feature_names(modeling_rows)
+    development_rows = split_to_rows["train"] + split_to_rows["val"]
+    selected_configuration = _choose_best_configuration(
+        development_rows,
+        all_numeric_feature_names,
+        all_categorical_feature_names,
+    )
+    numeric_feature_names = list(selected_configuration["numeric_feature_names"])
+    categorical_feature_names = list(selected_configuration["categorical_feature_names"])
+    tuned_threshold = float(selected_configuration["threshold"])
+    tuned_l2_penalty = float(selected_configuration["l2_penalty"])
 
-    split_features = {
-        split_name: [
-            vectorize_row(row, numeric_feature_names, categorical_feature_names, numeric_stats)
-            for row in rows
-        ]
-        for split_name, rows in split_to_rows.items()
-    }
-    split_targets = {
-        split_name: [int(row["is_similar"]) for row in rows]
-        for split_name, rows in split_to_rows.items()
-    }
-
-    bias, weights = train_logistic_regression(split_features["train"], split_targets["train"])
-    split_probabilities = {
-        split_name: predict_probabilities(features, bias, weights)
-        for split_name, features in split_features.items()
-    }
+    development_features, development_targets, test_features, test_targets = _build_split_features(
+        development_rows,
+        split_to_rows["test"],
+        numeric_feature_names,
+        categorical_feature_names,
+    )
+    bias, weights = train_logistic_regression(
+        development_features,
+        development_targets,
+        learning_rate=0.05,
+        epochs=TRAINING_EPOCHS,
+        l2_penalty=tuned_l2_penalty,
+    )
+    development_probabilities = predict_probabilities(development_features, bias, weights)
+    test_probabilities = predict_probabilities(test_features, bias, weights)
 
     test_examples = []
     for row, probability in zip(
         split_to_rows["test"],
-        split_probabilities["test"],
+        test_probabilities,
         strict=True,
     ):
         test_examples.append(
@@ -70,7 +242,7 @@ def build_report(
                 "actual_frac_similar": round(float(row["frac_similar"]), 4),
                 "actual_label": int(row["is_similar"]),
                 "predicted_probability": round(probability, 4),
-                "predicted_label": 1 if probability >= threshold else 0,
+                "predicted_label": 1 if probability >= tuned_threshold else 0,
             }
         )
 
@@ -78,7 +250,11 @@ def build_report(
         "configuration": {
             "prepared_dataset_path": str(prepared_dataset_path),
             "labels_path": str(labels_path),
-            "threshold": threshold,
+            "label_threshold": threshold,
+            "selected_probability_threshold": tuned_threshold,
+            "selected_l2_penalty": tuned_l2_penalty,
+            "selected_feature_set": selected_configuration["feature_set_name"],
+            "selected_use_target_categories": selected_configuration["use_target_categories"],
             "numeric_feature_count": len(numeric_feature_names),
             "categorical_feature_count": len(categorical_feature_names),
             "numeric_features": numeric_feature_names,
@@ -88,15 +264,32 @@ def build_report(
             "row_count": len(modeling_rows),
             "split_counts": {split_name: len(rows) for split_name, rows in split_to_rows.items()},
         },
+        "model_selection": {
+            "fold_count": FOLD_COUNT,
+            "candidate_feature_sets": list(FEATURE_SET_CANDIDATES),
+            "candidate_l2_penalties": L2_CANDIDATES,
+            "candidate_thresholds": THRESHOLD_CANDIDATES,
+            "selected_configuration": {
+                "feature_set_name": selected_configuration["feature_set_name"],
+                "use_target_categories": selected_configuration["use_target_categories"],
+                "threshold": tuned_threshold,
+                "l2_penalty": tuned_l2_penalty,
+                "cv_metrics": selected_configuration["cv_metrics"],
+            },
+        },
         "model": {
-            "name": "logistic_regression_threshold_classifier",
+            "name": "cross_validated_logistic_threshold_classifier",
             "metrics": {
-                split_name: evaluate_probabilities(
-                    split_targets[split_name],
-                    split_probabilities[split_name],
-                    threshold=threshold,
-                )
-                for split_name in ("train", "val", "test")
+                "development": evaluate_probabilities(
+                    development_targets,
+                    development_probabilities,
+                    threshold=tuned_threshold,
+                ),
+                "test": evaluate_probabilities(
+                    test_targets,
+                    test_probabilities,
+                    threshold=tuned_threshold,
+                ),
             },
             "coefficients": {
                 "bias": round(bias, 6),
@@ -118,7 +311,10 @@ def render_markdown(report: dict[str, object]) -> str:
     lines = [
         "# Threshold-Based Similarity Model",
         "",
-        f"- Decision threshold: {report['configuration']['threshold']}",
+        f"- Similarity label threshold: {report['configuration']['label_threshold']}",
+        f"- Selected probability threshold: {report['configuration']['selected_probability_threshold']}",
+        f"- Selected feature set: {report['configuration']['selected_feature_set']}",
+        f"- Selected L2 penalty: {report['configuration']['selected_l2_penalty']}",
         f"- Rows: {report['dataset']['row_count']}",
         (
             "- Feature counts: "
@@ -133,13 +329,23 @@ def render_markdown(report: dict[str, object]) -> str:
             )
         ),
         "",
+        "## Model Selection",
+        "",
+        (
+            "- Cross-validation summary: "
+            f"folds={report['model_selection']['fold_count']}, "
+            f"mean_f1={report['model_selection']['selected_configuration']['cv_metrics']['mean_f1']}, "
+            f"mean_accuracy={report['model_selection']['selected_configuration']['cv_metrics']['mean_accuracy']}, "
+            f"mean_log_loss={report['model_selection']['selected_configuration']['cv_metrics']['mean_log_loss']}"
+        ),
+        "",
         "## Classification Metrics",
         "",
         "| split | log_loss | brier | accuracy | precision | recall | f1 |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
 
-    for split_name in ("train", "val", "test"):
+    for split_name in ("development", "test"):
         metrics = report["model"]["metrics"][split_name]
         lines.append(
             "| {split_name} | {log_loss} | {brier_score} | {accuracy} | {precision} | {recall} | {f1} |".format(
@@ -183,7 +389,7 @@ def main() -> int:
     if len(sys.argv) not in {1, 3, 4}:
         print(
             "Usage: python scripts/run_similarity_threshold_model.py "
-            "[prepared_dataset.json labels.csv [threshold]]"
+            "[prepared_dataset.json labels.csv [label_threshold]]"
         )
         return 1
 
@@ -191,8 +397,8 @@ def main() -> int:
         prepared_dataset_path = Path(sys.argv[1]).expanduser().resolve()
         labels_path = Path(sys.argv[2]).expanduser().resolve()
 
-    threshold = float(sys.argv[3]) if len(sys.argv) == 4 else DEFAULT_THRESHOLD
-    report = build_report(prepared_dataset_path, labels_path, threshold=threshold)
+    label_threshold = float(sys.argv[3]) if len(sys.argv) == 4 else DEFAULT_THRESHOLD
+    report = build_report(prepared_dataset_path, labels_path, threshold=label_threshold)
 
     reports_dir = Path("exploration/reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -205,6 +411,12 @@ def main() -> int:
     test_metrics = report["model"]["metrics"]["test"]
     print(f"Wrote {json_path}")
     print(f"Wrote {markdown_path}")
+    print(
+        "Selected config: "
+        f"feature_set={report['configuration']['selected_feature_set']}, "
+        f"probability_threshold={report['configuration']['selected_probability_threshold']}, "
+        f"l2_penalty={report['configuration']['selected_l2_penalty']}"
+    )
     print(f"Test accuracy: {test_metrics['accuracy']}")
     print(f"Test f1: {test_metrics['f1']}")
     print(f"Test log loss: {test_metrics['log_loss']}")

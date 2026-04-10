@@ -77,10 +77,14 @@ def test_build_report_trains_threshold_classifier(tmp_path) -> None:
 
     report = build_report(prepared_dataset_path, labels_path, threshold=0.5)
 
-    assert report["configuration"]["threshold"] == 0.5
+    assert report["configuration"]["label_threshold"] == 0.5
     assert report["dataset"]["split_counts"] == {"train": 2, "val": 1, "test": 1}
-    assert report["model"]["name"] == "logistic_regression_threshold_classifier"
-    assert set(report["model"]["metrics"]) == {"train", "val", "test"}
+    assert report["model"]["name"] == "cross_validated_logistic_threshold_classifier"
+    assert set(report["model"]["metrics"]) == {"development", "test"}
+    assert report["model_selection"]["selected_configuration"]["feature_set_name"] in {
+        "core_similarity",
+        "compact_similarity",
+    }
     assert report["test_examples"][0]["pair_id"] == "004"
     assert report["test_examples"][0]["actual_label"] == 0
     assert 0.0 <= report["test_examples"][0]["predicted_probability"] <= 1.0
@@ -89,7 +93,10 @@ def test_build_report_trains_threshold_classifier(tmp_path) -> None:
 def test_render_markdown_includes_threshold_predictions() -> None:
     report = {
         "configuration": {
-            "threshold": 0.5,
+            "label_threshold": 0.5,
+            "selected_probability_threshold": 0.45,
+            "selected_feature_set": "compact_similarity",
+            "selected_l2_penalty": 0.1,
             "numeric_feature_count": 3,
             "categorical_feature_count": 1,
         },
@@ -97,19 +104,21 @@ def test_render_markdown_includes_threshold_predictions() -> None:
             "row_count": 4,
             "split_counts": {"train": 2, "val": 1, "test": 1},
         },
+        "model_selection": {
+            "fold_count": 5,
+            "selected_configuration": {
+                "cv_metrics": {
+                    "mean_f1": 0.9,
+                    "mean_accuracy": 0.8,
+                    "mean_log_loss": 0.3,
+                }
+            },
+        },
         "model": {
             "metrics": {
-                "train": {
+                "development": {
                     "log_loss": 0.1,
                     "brier_score": 0.02,
-                    "accuracy": 1.0,
-                    "precision": 1.0,
-                    "recall": 1.0,
-                    "f1": 1.0,
-                },
-                "val": {
-                    "log_loss": 0.2,
-                    "brier_score": 0.04,
                     "accuracy": 1.0,
                     "precision": 1.0,
                     "recall": 1.0,
@@ -141,5 +150,6 @@ def test_render_markdown_includes_threshold_predictions() -> None:
     markdown = render_markdown(report)
 
     assert "# Threshold-Based Similarity Model" in markdown
+    assert "## Model Selection" in markdown
     assert "## Classification Metrics" in markdown
     assert "| 004 | HERG | dis3D | 0.2 | 0 | 0.1 | 0 |" in markdown
