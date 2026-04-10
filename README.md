@@ -27,7 +27,9 @@ Use the exploration workspace to describe and inspect datasets before modeling.
    `python scripts/prepare_dataset.py "/path/to/dataset"`
 5. Run the baseline experiment suite with richer features:
    `python scripts/run_linear_regression_baseline.py`
-6. Open the generated report files in `exploration/reports/`
+6. Train a threshold-based classifier for similar vs not similar pairs:
+   `python scripts/run_similarity_threshold_model.py`
+7. Open the generated report files in `exploration/reports/`
 
 ## CI/CD
 
