@@ -27,13 +27,13 @@ class MolecularETLPipeline:
         if self.db_type == "sqlite":
             self.conn = sqlite3.connect(self.db_path)
             self.cursor = self.conn.cursor()
-            print(f"✅ Connected to SQLite: {self.db_path}")
+            print(f" Connected to SQLite: {self.db_path}")
         else:
             raise NotImplementedError(f"Database type {self.db_type} not yet implemented")
     
     def create_schema(self):
         """Create database schema for molecular data."""
-        print("📊 Creating database schema...")
+        print("Creating database schema...")
         
         # Molecules table
         self.cursor.execute("""
@@ -105,7 +105,7 @@ class MolecularETLPipeline:
         """)
         
         self.conn.commit()
-        print("✅ Schema created successfully")
+        print("Schema created successfully")
     
     def load_from_index(self, index_json_path: str):
         """Load molecule pair data from dataset_index.json."""
@@ -136,11 +136,11 @@ class MolecularETLPipeline:
             ))
         
         self.conn.commit()
-        print(f"✅ Loaded {len(pairs)} molecule pairs")
+        print(f"Loaded {len(pairs)} molecule pairs")
     
     def export_for_modeling(self, output_path: str):
         """Export processed data as CSV for modeling."""
-        print(f"💾 Exporting data to {output_path}...")
+        print(f"Exporting data to {output_path}...")
         
         query = """
             SELECT 
@@ -162,7 +162,7 @@ class MolecularETLPipeline:
             for row in rows:
                 f.write(",".join(str(x) for x in row) + "\n")
         
-        print(f"✅ Exported {len(rows)} records")
+        print(f"Exported {len(rows)} records")
     
     def get_statistics(self):
         """Get pipeline statistics."""
@@ -186,7 +186,7 @@ class MolecularETLPipeline:
         """Close database connection."""
         if self.conn:
             self.conn.close()
-            print("✅ Database connection closed")
+            print("Database connection closed")
 
 
 def main():
@@ -238,14 +238,14 @@ def main():
         
         if args.load:
             if not Path(args.index).exists():
-                print(f"⚠️ Index file not found: {args.index}")
+                print(f" Index file not found: {args.index}")
                 print("Run: python scripts/build_dataset_index.py ./data/chembl")
                 return
             pipeline.load_from_index(args.index)
         
         if args.stats:
             stats = pipeline.get_statistics()
-            print("\n📈 Pipeline Statistics:")
+            print("\n Pipeline Statistics:")
             for key, value in stats.items():
                 print(f"  {key}: {value}")
         
