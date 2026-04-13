@@ -181,6 +181,10 @@
       }
     }
   },
+  "plots": {
+    "probability_distribution": "similarity_threshold_model_probability.png",
+    "umap_projection": "similarity_threshold_model_umap.png"
+  },
   "test_examples": [
     {
       "pair_id": "004",

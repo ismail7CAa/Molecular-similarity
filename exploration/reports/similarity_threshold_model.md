@@ -19,6 +19,18 @@
 | development | 0.3664 | 0.1072 | 0.8778 | 0.8596 | 0.9423 | 0.8991 |
 | test | 0.6272 | 0.2228 | 0.6 | 0.4286 | 1.0 | 0.6 |
 
+## Plots
+
+### Probability Distribution
+
+![Predicted probability distribution](similarity_threshold_model_probability.png)
+
+### UMAP Projection
+
+The UMAP view projects molecule-pair feature vectors into 2D; color shows actual similarity label and marker shows split.
+
+![UMAP projection of molecular pair features](similarity_threshold_model_umap.png)
+
 ## Test Predictions
 
 | pair_id | target | type | frac_similar | actual_label | probability | predicted_label |

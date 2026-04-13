@@ -85,6 +85,8 @@ def test_build_report_trains_threshold_classifier(tmp_path) -> None:
         "core_similarity",
         "compact_similarity",
     }
+    assert len(report["visualization_rows"]) == 4
+    assert len(report["visualization_features"]) == 4
     assert report["test_examples"][0]["pair_id"] == "004"
     assert report["test_examples"][0]["actual_label"] == 0
     assert 0.0 <= report["test_examples"][0]["predicted_probability"] <= 1.0
@@ -134,6 +136,10 @@ def test_render_markdown_includes_threshold_predictions() -> None:
                 },
             }
         },
+        "plots": {
+            "probability_distribution": "similarity_threshold_model_probability.png",
+            "umap_projection": "similarity_threshold_model_umap.png",
+        },
         "test_examples": [
             {
                 "pair_id": "004",
@@ -151,5 +157,7 @@ def test_render_markdown_includes_threshold_predictions() -> None:
 
     assert "# Threshold-Based Similarity Model" in markdown
     assert "## Model Selection" in markdown
+    assert "## Plots" in markdown
     assert "## Classification Metrics" in markdown
+    assert "similarity_threshold_model_umap.png" in markdown
     assert "| 004 | HERG | dis3D | 0.2 | 0 | 0.1 | 0 |" in markdown

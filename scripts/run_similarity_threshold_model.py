@@ -45,6 +45,7 @@ L2_CANDIDATES = [0.1, 0.5]
 THRESHOLD_CANDIDATES = [0.45, 0.5, 0.55]
 FOLD_COUNT = 5
 TRAINING_EPOCHS = 500
+UMAP_RANDOM_STATE = 42
 
 
 def _candidate_numeric_features(
@@ -190,6 +191,138 @@ def _choose_best_configuration(
     return candidate_reports[0]
 
 
+def _all_row_features(
+    rows: list[dict[str, object]],
+    numeric_feature_names: list[str],
+    categorical_feature_names: list[str],
+    numeric_stats: dict[str, tuple[float, float]],
+) -> list[list[float]]:
+    return [
+        vectorize_row(row, numeric_feature_names, categorical_feature_names, numeric_stats)
+        for row in rows
+    ]
+
+
+def _build_visualization_rows(
+    rows: list[dict[str, object]],
+    probabilities: list[float],
+    threshold: float,
+) -> list[dict[str, object]]:
+    visualization_rows: list[dict[str, object]] = []
+    for row, probability in zip(rows, probabilities, strict=True):
+        visualization_rows.append(
+            {
+                "pair_id": str(row["pair_id"]),
+                "split": str(row["split"]),
+                "target_name": str(row["target_name"]),
+                "pair_type": str(row["pair_type"]),
+                "actual_frac_similar": round(float(row["frac_similar"]), 4),
+                "actual_label": int(row["is_similar"]),
+                "predicted_probability": round(probability, 4),
+                "predicted_label": 1 if probability >= threshold else 0,
+            }
+        )
+    return visualization_rows
+
+
+def generate_plots(
+    report: dict[str, object],
+    all_features: list[list[float]],
+    plot_rows: list[dict[str, object]],
+    reports_dir: Path,
+) -> dict[str, str]:
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import umap
+
+    probability_plot_path = reports_dir / "similarity_threshold_model_probability.png"
+    umap_plot_path = reports_dir / "similarity_threshold_model_umap.png"
+    threshold = float(report["configuration"]["selected_probability_threshold"])
+
+    similar_probabilities = [
+        float(row["predicted_probability"]) for row in plot_rows if int(row["actual_label"]) == 1
+    ]
+    dissimilar_probabilities = [
+        float(row["predicted_probability"]) for row in plot_rows if int(row["actual_label"]) == 0
+    ]
+
+    plt.style.use("ggplot")
+    figure, axis = plt.subplots(figsize=(8, 5))
+    axis.hist(
+        dissimilar_probabilities,
+        bins=10,
+        alpha=0.7,
+        label="Actual dissimilar",
+        color="#4C78A8",
+    )
+    axis.hist(
+        similar_probabilities,
+        bins=10,
+        alpha=0.7,
+        label="Actual similar",
+        color="#F58518",
+    )
+    axis.axvline(threshold, color="#111111", linestyle="--", linewidth=1.5, label="Decision threshold")
+    axis.set_title("Predicted Probability Distribution")
+    axis.set_xlabel("Predicted probability of similarity")
+    axis.set_ylabel("Pair count")
+    axis.legend()
+    figure.tight_layout()
+    figure.savefig(probability_plot_path, dpi=180)
+    plt.close(figure)
+
+    embedding = umap.UMAP(
+        n_components=2,
+        n_neighbors=min(15, max(2, len(all_features) - 1)),
+        min_dist=0.2,
+        random_state=UMAP_RANDOM_STATE,
+    ).fit_transform(np.array(all_features, dtype=float))
+
+    split_to_marker = {"train": "o", "val": "s", "test": "^"}
+    label_to_color = {0: "#4C78A8", 1: "#F58518"}
+    figure, axis = plt.subplots(figsize=(8, 6))
+
+    for split_name, marker in split_to_marker.items():
+        for actual_label, color in label_to_color.items():
+            points = [
+                (coords, row)
+                for coords, row in zip(embedding, plot_rows, strict=True)
+                if row["split"] == split_name and int(row["actual_label"]) == actual_label
+            ]
+            if not points:
+                continue
+            x_values = [float(coords[0]) for coords, _ in points]
+            y_values = [float(coords[1]) for coords, _ in points]
+            axis.scatter(
+                x_values,
+                y_values,
+                s=55,
+                marker=marker,
+                color=color,
+                alpha=0.8,
+                edgecolors="black",
+                linewidths=0.3,
+                label=f"{split_name} / {'similar' if actual_label == 1 else 'dissimilar'}",
+            )
+
+    axis.set_title("UMAP Projection of Molecular Pair Features")
+    axis.set_xlabel("UMAP-1")
+    axis.set_ylabel("UMAP-2")
+    axis.legend(fontsize=8, ncol=2)
+    figure.tight_layout()
+    figure.savefig(umap_plot_path, dpi=180)
+    plt.close(figure)
+
+    return {
+        "probability_distribution": probability_plot_path.name,
+        "umap_projection": umap_plot_path.name,
+    }
+
+
 def build_report(
     prepared_dataset_path: Path,
     labels_path: Path,
@@ -211,13 +344,28 @@ def build_report(
     categorical_feature_names = list(selected_configuration["categorical_feature_names"])
     tuned_threshold = float(selected_configuration["threshold"])
     tuned_l2_penalty = float(selected_configuration["l2_penalty"])
+    numeric_stats = compute_numeric_stats(development_rows, numeric_feature_names)
 
-    development_features, development_targets, test_features, test_targets = _build_split_features(
+    development_features = _all_row_features(
         development_rows,
+        numeric_feature_names,
+        categorical_feature_names,
+        numeric_stats,
+    )
+    test_features = _all_row_features(
         split_to_rows["test"],
         numeric_feature_names,
         categorical_feature_names,
+        numeric_stats,
     )
+    all_features = _all_row_features(
+        modeling_rows,
+        numeric_feature_names,
+        categorical_feature_names,
+        numeric_stats,
+    )
+    development_targets = [int(row["is_similar"]) for row in development_rows]
+    test_targets = [int(row["is_similar"]) for row in split_to_rows["test"]]
     bias, weights = train_logistic_regression(
         development_features,
         development_targets,
@@ -227,6 +375,7 @@ def build_report(
     )
     development_probabilities = predict_probabilities(development_features, bias, weights)
     test_probabilities = predict_probabilities(test_features, bias, weights)
+    all_probabilities = predict_probabilities(all_features, bias, weights)
 
     test_examples = []
     for row, probability in zip(
@@ -245,6 +394,8 @@ def build_report(
                 "predicted_label": 1 if probability >= tuned_threshold else 0,
             }
         )
+
+    plot_rows = _build_visualization_rows(modeling_rows, all_probabilities, tuned_threshold)
 
     return {
         "configuration": {
@@ -303,6 +454,9 @@ def build_report(
                 },
             },
         },
+        "plots": {},
+        "visualization_features": all_features,
+        "visualization_rows": plot_rows,
         "test_examples": test_examples,
     }
 
@@ -359,6 +513,27 @@ def render_markdown(report: dict[str, object]) -> str:
             )
         )
 
+    if report.get("plots"):
+        lines.extend(
+            [
+                "",
+                "## Plots",
+                "",
+                "### Probability Distribution",
+                "",
+                f"![Predicted probability distribution]({report['plots']['probability_distribution']})",
+                "",
+                "### UMAP Projection",
+                "",
+                (
+                    "The UMAP view projects molecule-pair feature vectors into 2D; "
+                    "color shows actual similarity label and marker shows split."
+                ),
+                "",
+                f"![UMAP projection of molecular pair features]({report['plots']['umap_projection']})",
+            ]
+        )
+
     lines.extend(
         [
             "",
@@ -404,6 +579,14 @@ def main() -> int:
     reports_dir.mkdir(parents=True, exist_ok=True)
     json_path = reports_dir / "similarity_threshold_model.json"
     markdown_path = reports_dir / "similarity_threshold_model.md"
+    report["plots"] = generate_plots(
+        report,
+        report["visualization_features"],
+        report["visualization_rows"],
+        reports_dir,
+    )
+    del report["visualization_features"]
+    del report["visualization_rows"]
 
     json_path.write_text(json.dumps(report, indent=2))
     markdown_path.write_text(render_markdown(report))
