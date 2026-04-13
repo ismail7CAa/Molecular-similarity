@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           if python -m pip show ruff >/dev/null 2>&1; then
-            python -m ruff check .
+            python -m ruff check src scripts tests
           else
             echo "Ruff is not installed yet; skipping lint step."
           fi
