@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS activities (
     assay_type TEXT,
     activity_value REAL,
     unit TEXT,
+    standard_type TEXT,
+    target_chembl_id TEXT,
+    target_name TEXT,
+    source_assay_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (molecule_id) REFERENCES molecules(molecule_id)
 );
