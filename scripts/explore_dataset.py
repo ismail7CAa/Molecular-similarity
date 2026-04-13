@@ -155,7 +155,11 @@ def build_summary(dataset_root: Path) -> dict[str, object]:
                 if complete_joint_pairs
                 else {},
             },
-            "first_pdb_record": pdb_details.get(complete_joint_pairs[0], {}) if complete_joint_pairs else {},
+            "first_pdb_record": (
+                pdb_details.get(complete_joint_pairs[0], {})
+                if complete_joint_pairs
+                else {}
+            ),
         },
     }
 
@@ -175,7 +179,10 @@ def render_markdown(summary: dict[str, object]) -> str:
         f"- PDB files: {counts['pdb_files']}",
         f"- SVG files: {counts['svg_files']}",
         f"- Indexed molecule groups: {counts['indexed_pdb_groups']}",
-        f"- Complete paired entries across both modalities: {counts['complete_joint_pairs']}",
+        (
+            "- Complete paired entries across both modalities: "
+            f"{counts['complete_joint_pairs']}"
+        ),
         "",
         "## Pairing Checks",
         "",
@@ -352,7 +359,11 @@ def render_html(summary: dict[str, object]) -> str:
       <div class="eyebrow">Dataset overview</div>
       <h1>Molecular Similarity Training Set</h1>
       <p>{summary["dataset_root"]}</p>
-      <p>This quick visual report summarizes dataset completeness and a few basic 3D conformer statistics so we can decide the next analysis step with confidence.</p>
+      <p>
+        This quick visual report summarizes dataset completeness and a few basic
+        3D conformer statistics so we can decide the next analysis step with
+        confidence.
+      </p>
     </section>
     <section class="grid">
       <article class="card">
@@ -362,9 +373,19 @@ def render_html(summary: dict[str, object]) -> str:
       <article class="card">
         <h2>What We Learned</h2>
         <ul>
-          <li>{counts["complete_joint_pairs"]} molecule indices have both 3D conformers and 2D images for variants <code>a</code> and <code>b</code>.</li>
-          <li>The median conformer contains {atom_stats["median"]} atoms and {heavy_stats["median"]} heavy atoms.</li>
-          <li>The dataset is organized as paired entries, which is a good fit for similarity learning or Siamese-style modeling.</li>
+          <li>
+            {counts["complete_joint_pairs"]} molecule indices have both 3D
+            conformers and 2D images for variants <code>a</code> and
+            <code>b</code>.
+          </li>
+          <li>
+            The median conformer contains {atom_stats["median"]} atoms and
+            {heavy_stats["median"]} heavy atoms.
+          </li>
+          <li>
+            The dataset is organized as paired entries, which is a good fit for
+            similarity learning or Siamese-style modeling.
+          </li>
         </ul>
       </article>
     </section>

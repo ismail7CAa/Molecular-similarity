@@ -54,12 +54,23 @@ def test_train_linear_regression_learns_simple_signal() -> None:
     features = [[0.0], [1.0], [2.0], [3.0]]
     targets = [0.0, 1.0, 2.0, 3.0]
 
-    bias, weights = train_linear_regression(features, targets, learning_rate=0.1, epochs=3000)
+    bias, weights = train_linear_regression(
+        features,
+        targets,
+        learning_rate=0.1,
+        epochs=3000,
+    )
     predictions = predict(features, bias, weights)
 
     assert abs(bias) < 0.05
     assert abs(weights[0] - 1.0) < 0.05
-    assert max(abs(target - prediction) for target, prediction in zip(targets, predictions, strict=True)) < 0.05
+    assert (
+        max(
+            abs(target - prediction)
+            for target, prediction in zip(targets, predictions, strict=True)
+        )
+        < 0.05
+    )
 
 
 def test_train_logistic_regression_learns_binary_signal() -> None:

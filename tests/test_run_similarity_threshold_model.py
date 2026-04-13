@@ -66,7 +66,11 @@ def test_build_report_trains_threshold_classifier(tmp_path) -> None:
     labels_path.write_text(
         "\n".join(
             [
-                "id_pair,frac_similar,target_name,pair_type,tanimoto_cdk_Extended,TanimotoCombo,pchembl_distance,curated_smiles_molecule_a,curated_smiles_molecule_b",
+                (
+                    "id_pair,frac_similar,target_name,pair_type,"
+                    "tanimoto_cdk_Extended,TanimotoCombo,pchembl_distance,"
+                    "curated_smiles_molecule_a,curated_smiles_molecule_b"
+                ),
                 "1,0.9,CYP2D6,sim2D,0.95,1.9,0.1,CCN,CCCN",
                 "2,0.1,CYP2D6,dis2D,0.15,0.2,1.3,CCN,CCCCCCCC",
                 "3,0.8,HERG,sim3D,0.9,1.7,0.2,CCO,CCCO",

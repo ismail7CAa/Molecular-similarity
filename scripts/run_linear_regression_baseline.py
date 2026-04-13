@@ -133,7 +133,8 @@ def build_feature_names(rows: list[dict[str, object]]) -> tuple[list[str], list[
                 numeric_feature_names.add(key)
 
     categorical_feature_names = [
-        f"target_name={target_name}" for target_name in sorted({str(row["target_name"]) for row in rows})
+        f"target_name={target_name}"
+        for target_name in sorted({str(row["target_name"]) for row in rows})
     ]
 
     return sorted(numeric_feature_names), categorical_feature_names
@@ -149,7 +150,10 @@ def compute_numeric_stats(
         mean_value = sum(values) / len(values)
         variance = sum((value - mean_value) ** 2 for value in values) / len(values)
         std_value = math.sqrt(variance)
-        stats[feature_name] = (mean_value, std_value if std_value > 0 else 1.0)
+        stats[feature_name] = (
+            mean_value,
+            std_value if std_value > 0 else 1.0,
+        )
 
     return stats
 
@@ -194,7 +198,10 @@ def train_linear_regression(
         weight_gradients = [0.0] * feature_count
 
         for features, target in zip(feature_matrix, targets, strict=True):
-            prediction = bias + sum(weight * value for weight, value in zip(weights, features, strict=True))
+            prediction = bias + sum(
+                weight * value
+                for weight, value in zip(weights, features, strict=True)
+            )
             error = prediction - target
             bias_gradient += error
             for index, feature_value in enumerate(features):
@@ -235,7 +242,10 @@ def train_logistic_regression(
         weight_gradients = [0.0] * feature_count
 
         for features, target in zip(feature_matrix, targets, strict=True):
-            score = bias + sum(weight * value for weight, value in zip(weights, features, strict=True))
+            score = bias + sum(
+                weight * value
+                for weight, value in zip(weights, features, strict=True)
+            )
             probability = _sigmoid(score)
             error = probability - float(target)
             bias_gradient += error
@@ -252,14 +262,22 @@ def train_logistic_regression(
     return bias, weights
 
 
-def predict(feature_matrix: list[list[float]], bias: float, weights: list[float]) -> list[float]:
+def predict(
+    feature_matrix: list[list[float]],
+    bias: float,
+    weights: list[float],
+) -> list[float]:
     return [
         bias + sum(weight * value for weight, value in zip(weights, features, strict=True))
         for features in feature_matrix
     ]
 
 
-def predict_probabilities(feature_matrix: list[list[float]], bias: float, weights: list[float]) -> list[float]:
+def predict_probabilities(
+    feature_matrix: list[list[float]],
+    bias: float,
+    weights: list[float],
+) -> list[float]:
     return [_sigmoid(score) for score in predict(feature_matrix, bias, weights)]
 
 
@@ -292,8 +310,16 @@ def evaluate_threshold_predictions(
     )
 
     accuracy = (true_positive + true_negative) / len(targets)
-    precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) else 0.0
-    recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) else 0.0
+    precision = (
+        true_positive / (true_positive + false_positive)
+        if (true_positive + false_positive)
+        else 0.0
+    )
+    recall = (
+        true_positive / (true_positive + false_negative)
+        if (true_positive + false_negative)
+        else 0.0
+    )
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
 
     return {
@@ -321,7 +347,11 @@ def evaluate_regression_with_threshold(
     mae = sum(
         abs(target - prediction) for target, prediction in zip(targets, predictions, strict=True)
     ) / len(targets)
-    classification = evaluate_threshold_predictions(binary_targets, predictions, threshold=threshold)
+    classification = evaluate_threshold_predictions(
+        binary_targets,
+        predictions,
+        threshold=threshold,
+    )
 
     return {
         **classification,
@@ -415,10 +445,25 @@ def build_report(
     linear_val_predictions = predict(val_features, linear_bias, linear_weights)
     linear_test_predictions = predict(test_features, linear_bias, linear_weights)
 
-    logistic_bias, logistic_weights = train_logistic_regression(train_features, train_binary_targets)
-    logistic_train_probabilities = predict_probabilities(train_features, logistic_bias, logistic_weights)
-    logistic_val_probabilities = predict_probabilities(val_features, logistic_bias, logistic_weights)
-    logistic_test_probabilities = predict_probabilities(test_features, logistic_bias, logistic_weights)
+    logistic_bias, logistic_weights = train_logistic_regression(
+        train_features,
+        train_binary_targets,
+    )
+    logistic_train_probabilities = predict_probabilities(
+        train_features,
+        logistic_bias,
+        logistic_weights,
+    )
+    logistic_val_probabilities = predict_probabilities(
+        val_features,
+        logistic_bias,
+        logistic_weights,
+    )
+    logistic_test_probabilities = predict_probabilities(
+        test_features,
+        logistic_bias,
+        logistic_weights,
+    )
 
     test_examples = []
     for row, linear_prediction, logistic_probability in zip(
@@ -453,7 +498,9 @@ def build_report(
         },
         "dataset": {
             "row_count": len(modeling_rows),
-            "split_counts": {split_name: len(rows) for split_name, rows in split_to_rows.items()},
+            "split_counts": {
+                split_name: len(rows) for split_name, rows in split_to_rows.items()
+            },
         },
         "models": {
             "linear_regression": {
@@ -551,7 +598,10 @@ def render_markdown(report: dict[str, object]) -> str:
     for split_name in ("train", "val", "test"):
         metrics = report["models"]["logistic_regression"]["metrics"][split_name]
         lines.append(
-            "| {split_name} | {log_loss} | {brier_score} | {accuracy} | {precision} | {recall} | {f1} |".format(
+            (
+                "| {split_name} | {log_loss} | {brier_score} | {accuracy} | "
+                "{precision} | {recall} | {f1} |"
+            ).format(
                 split_name=split_name,
                 log_loss=metrics["log_loss"],
                 brier_score=metrics["brier_score"],
@@ -586,7 +636,10 @@ def render_markdown(report: dict[str, object]) -> str:
 def main() -> int:
     prepared_dataset_path = Path("exploration/reports/prepared_dataset.json")
     labels_path = Path(
-        "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/new_dataset/new_dataset.csv"
+        (
+            "/Users/ismailcherkaouiaadil/Downloads/"
+            "dataset_Similarity_Prediction/new_dataset/new_dataset.csv"
+        )
     )
 
     if len(sys.argv) not in {1, 3, 4}:
