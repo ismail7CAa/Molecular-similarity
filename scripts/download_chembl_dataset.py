@@ -23,7 +23,7 @@ def download_from_chembl(output_dir: Path) -> None:
     conformers_dir.mkdir(exist_ok=True)
     images_dir.mkdir(exist_ok=True)
     
-    print("\n📥 ChEMBL Dataset Download Options:")
+    print("\n ChEMBL Dataset Download Options:")
     print("\n1. Via ChEMBL Web Interface:")
     print("   - Visit: https://www.ebi.ac.uk/chembl/")
     print("   - Search for molecules of interest")
@@ -38,11 +38,11 @@ def download_from_chembl(output_dir: Path) -> None:
     print("   - Full ChEMBL dump: https://chembl.gitbook.io/chembl/downloads")
     print("   - Contains: SDF with 3D coordinates, SMILES, activities")
     
-    print(f"\n✅ Directory structure created:")
+    print(f"\n Directory structure created:")
     print(f"   {conformers_dir}/  (place PDB/SDF files here)")
     print(f"   {images_dir}/      (place SVG/PNG files here)")
     
-    print("\n💡 After downloading, rename files to match expected pattern:")
+    print("\n After downloading, rename files to match expected pattern:")
     print("   - Conformers: best_rocs_conformer_XXX[ab].pdb")
     print("   - Images: image_molecule_XXX[ab].svg")
     print("   (where XXX is a 3-digit zero-padded molecule ID)")
@@ -58,7 +58,7 @@ def download_sample_dataset(output_dir: Path) -> None:
     conformers_dir.mkdir(exist_ok=True)
     images_dir.mkdir(exist_ok=True)
     
-    print("✅ Sample dataset directories created at:")
+    print(" Sample dataset directories created at:")
     print(f"   {conformers_dir}/")
     print(f"   {images_dir}/")
     print("\nNext steps:")
@@ -92,7 +92,7 @@ def main():
         download_from_chembl(args.output)
     
     print("\n" + "="*60)
-    print("📚 Documentation: https://chembl.gitbook.io/chembl/")
+    print("Documentation: https://chembl.gitbook.io/chembl/")
     print("="*60)
 
 
