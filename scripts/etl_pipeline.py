@@ -172,14 +172,20 @@ class MolecularETLPipeline:
         self.cursor.execute("SELECT COUNT(*) FROM molecule_pairs")
         pair_count = self.cursor.fetchone()[0]
         
-        self.cursor.execute("SELECT COUNT(*) FROM molecule_pairs WHERE has_conformer_pair AND has_image_pair")
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM molecule_pairs "
+            "WHERE has_conformer_pair AND has_image_pair"
+        )
         complete_count = self.cursor.fetchone()[0]
         
         return {
             "total_molecules": mol_count,
             "total_pairs": pair_count,
             "complete_pairs": complete_count,
-            "completeness_pct": round((complete_count / pair_count * 100) if pair_count > 0 else 0, 2)
+            "completeness_pct": round(
+                (complete_count / pair_count * 100) if pair_count > 0 else 0,
+                2,
+            ),
         }
     
     def close(self):

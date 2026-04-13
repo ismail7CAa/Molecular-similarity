@@ -48,7 +48,10 @@ def allocate_split_counts(total: int, split_ratios: dict[str, float]) -> dict[st
     remaining = total - sum(split_counts.values())
     ordered_remainders = sorted(
         split_ratios,
-        key=lambda split_name: (-1 * (raw_counts[split_name] - split_counts[split_name]), split_name),
+        key=lambda split_name: (
+            -1 * (raw_counts[split_name] - split_counts[split_name]),
+            split_name,
+        ),
     )
 
     for split_name in ordered_remainders[:remaining]:
