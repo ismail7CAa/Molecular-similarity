@@ -1,9 +1,14 @@
 # SQL ETL Pipeline - Quick Start
 
 ## Overview
-The ETL pipeline transforms raw ChEMBL data into a structured SQL database optimized for molecular similarity modeling.
+The ETL pipeline supports two import paths into a structured SQL database:
 
-**Flow**: Extract (PDB/SDF) → Transform (parse/normalize) → Load (Database)
+1. Pair-file ETL for local `conformers_3D/` and `images_2D/` datasets
+2. Direct import from the official ChEMBL SQLite release
+
+**Flows**
+- Pair files: Extract (PDB/SVG) → Transform (parse/normalize) → Load (Database)
+- Official DB: Extract (ChEMBL SQLite) → Transform (select/join) → Load (Database)
 
 ## Quick Commands
 
@@ -13,22 +18,43 @@ source .venv/bin/activate
 python scripts/etl_pipeline.py --db ./data/chembl.db --create-schema
 ```
 
-### 2. Build Dataset Index (if not done)
+### 2. Import Official ChEMBL SQLite
+```bash
+python scripts/etl_pipeline.py \
+  --db ./data/chembl.db \
+  --create-schema \
+  --import-chembl-sqlite \
+  --chembl-sqlite ./data/chembl/raw/chembl_36_sqlite/chembl_36/chembl_36_sqlite/chembl_36.db \
+  --limit 10000
+```
+
+To also import activities for the imported molecules:
+```bash
+python scripts/etl_pipeline.py \
+  --db ./data/chembl.db \
+  --import-chembl-sqlite \
+  --chembl-sqlite ./data/chembl/raw/chembl_36_sqlite/chembl_36/chembl_36_sqlite/chembl_36.db \
+  --limit 10000 \
+  --include-activities \
+  --activity-limit 50000
+```
+
+### 3. Build Dataset Index (if using pair files)
 ```bash
 python scripts/build_dataset_index.py ./data/chembl
 ```
 
-### 3. Load Data into Database
+### 4. Load Pair Data into Database
 ```bash
 python scripts/etl_pipeline.py --db ./data/chembl.db --load --index ./exploration/reports/dataset_index.json
 ```
 
-### 4. Check Pipeline Stats
+### 5. Check Pipeline Stats
 ```bash
 python scripts/etl_pipeline.py --db ./data/chembl.db --stats
 ```
 
-### 5. Export for Modeling
+### 6. Export Pair Data for Modeling
 ```bash
 python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv
 ```
@@ -57,20 +83,31 @@ python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_mode
 
 #### `activities`
 - Bioactivity data from ChEMBL
-- Optional: for enriching molecular features
+- Stores activity type, standard type, value, units, and target annotations
+- Useful for enriching molecular features directly from the official ChEMBL DB
 
 ## Pipeline Workflow
 
 ```
+Option A: pair files
 1. Raw ChEMBL files (PDB, SVG)
     ↓
 2. build_dataset_index.py → dataset_index.json
     ↓
-3. etl_pipeline.py (Extract, Transform)
+3. etl_pipeline.py --load
     ↓
-4. SQL Database (molecule_pairs table)
+4. SQL database (`molecule_pairs`)
     ↓
-5. Export CSV → ML Pipeline
+5. Export CSV → ML pipeline
+
+Option B: official ChEMBL DB
+1. `chembl_36.db`
+    ↓
+2. etl_pipeline.py --import-chembl-sqlite
+    ↓
+3. SQL database (`molecules`, `activities`)
+    ↓
+4. Downstream analysis / feature engineering
 ```
 
 ## Next: Build ML Model
