@@ -308,35 +308,28 @@ def generate_plots(
         random_state=UMAP_RANDOM_STATE,
     ).fit_transform(np.array(all_features, dtype=float))
 
-    split_to_marker = {"train": "o", "val": "s", "test": "^"}
     label_to_color = {0: "#4C78A8", 1: "#F58518"}
     figure, axis = plt.subplots(figsize=(8, 6))
 
-    for split_name, marker in split_to_marker.items():
-        for actual_label, color in label_to_color.items():
-            points = [
-                (coords, row)
-                for coords, row in zip(embedding, plot_rows, strict=True)
-                if row["split"] == split_name and int(row["actual_label"]) == actual_label
-            ]
-            if not points:
-                continue
-            x_values = [float(coords[0]) for coords, _ in points]
-            y_values = [float(coords[1]) for coords, _ in points]
-            axis.scatter(
-                x_values,
-                y_values,
-                s=55,
-                marker=marker,
-                color=color,
-                alpha=0.8,
-                edgecolors="black",
-                linewidths=0.3,
-                label=(
-                    f"{split_name} / "
-                    f"{'similar' if actual_label == 1 else 'dissimilar'}"
-                ),
-            )
+    for actual_label, color in label_to_color.items():
+        points = [
+            coords
+            for coords, row in zip(embedding, plot_rows, strict=True)
+            if int(row["actual_label"]) == actual_label
+        ]
+        if not points:
+            continue
+        x_values = [float(coords[0]) for coords in points]
+        y_values = [float(coords[1]) for coords in points]
+        axis.scatter(
+            x_values,
+            y_values,
+            s=55,
+            color=color,
+            alpha=0.8,
+            edgecolors="none",
+            label="Similar" if actual_label == 1 else "Dissimilar",
+        )
 
     axis.set_title("UMAP Projection of Molecular Pair Features")
     axis.set_xlabel("UMAP-1")
@@ -584,7 +577,7 @@ def render_markdown(report: dict[str, object]) -> str:
                 "",
                 (
                     "The UMAP view projects molecule-pair feature vectors into 2D; "
-                    "color shows actual similarity label and marker shows split."
+                    "colors show actual similarity labels."
                 ),
                 "",
                 (
