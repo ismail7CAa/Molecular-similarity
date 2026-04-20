@@ -27,7 +27,7 @@
 
 ### UMAP Projection
 
-The UMAP view projects molecule-pair feature vectors into 2D; color shows actual similarity label and marker shows split.
+The UMAP view projects molecule-pair feature vectors into 2D; colors show actual similarity labels.
 
 ![UMAP projection of molecular pair features](similarity_threshold_model_umap.png)
 

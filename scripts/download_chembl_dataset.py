@@ -8,7 +8,6 @@ Usage:
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 
@@ -38,7 +37,7 @@ def download_from_chembl(output_dir: Path) -> None:
     print("   - Full ChEMBL dump: https://chembl.gitbook.io/chembl/downloads")
     print("   - Contains: SDF with 3D coordinates, SMILES, activities")
     
-    print(f"\n Directory structure created:")
+    print("\n Directory structure created:")
     print(f"   {conformers_dir}/  (place PDB/SDF files here)")
     print(f"   {images_dir}/      (place SVG/PNG files here)")
     
