@@ -3,7 +3,7 @@
     "prepared_dataset_path": "exploration/reports/prepared_dataset.json",
     "labels_path": "/Users/ismailcherkaouiaadil/Downloads/dataset_Similarity_Prediction/new_dataset/new_dataset.csv",
     "label_threshold": 0.5,
-    "selected_probability_threshold": 0.55,
+    "selected_probability_threshold": 0.6,
     "selected_l2_penalty": 0.1,
     "selected_feature_set": "core_similarity",
     "selected_use_target_categories": true,
@@ -41,21 +41,38 @@
     "candidate_thresholds": [
       0.45,
       0.5,
-      0.55
+      0.55,
+      0.6,
+      0.65
     ],
     "selected_configuration": {
       "feature_set_name": "core_similarity",
       "use_target_categories": true,
-      "threshold": 0.55,
+      "threshold": 0.6,
       "l2_penalty": 0.1,
       "cv_metrics": {
-        "mean_accuracy": 0.8775,
-        "mean_precision": 0.8641,
-        "mean_recall": 0.94,
-        "mean_f1": 0.8987,
+        "mean_accuracy": 0.8991,
+        "mean_precision": 0.9052,
+        "mean_recall": 0.9218,
+        "mean_f1": 0.9131,
         "mean_brier_score": 0.1093,
         "mean_log_loss": 0.3704,
         "fold_metrics": [
+          {
+            "sample_count": 19,
+            "accuracy": 0.8947,
+            "precision": 0.9091,
+            "recall": 0.9091,
+            "f1": 0.9091,
+            "confusion_matrix": {
+              "tp": 10,
+              "tn": 7,
+              "fp": 1,
+              "fn": 1
+            },
+            "brier_score": 0.1203,
+            "log_loss": 0.3967
+          },
           {
             "sample_count": 19,
             "accuracy": 0.9474,
@@ -68,34 +85,19 @@
               "fp": 1,
               "fn": 0
             },
-            "brier_score": 0.1203,
-            "log_loss": 0.3967
-          },
-          {
-            "sample_count": 19,
-            "accuracy": 0.8421,
-            "precision": 0.7857,
-            "recall": 1.0,
-            "f1": 0.88,
-            "confusion_matrix": {
-              "tp": 11,
-              "tn": 5,
-              "fp": 3,
-              "fn": 0
-            },
             "brier_score": 0.1103,
             "log_loss": 0.3749
           },
           {
             "sample_count": 18,
-            "accuracy": 0.8333,
-            "precision": 0.8182,
+            "accuracy": 0.8889,
+            "precision": 0.9,
             "recall": 0.9,
-            "f1": 0.8571,
+            "f1": 0.9,
             "confusion_matrix": {
               "tp": 9,
-              "tn": 6,
-              "fp": 2,
+              "tn": 7,
+              "fp": 1,
               "fn": 1
             },
             "brier_score": 0.1158,
@@ -140,30 +142,30 @@
     "metrics": {
       "development": {
         "sample_count": 90,
-        "accuracy": 0.8778,
-        "precision": 0.8596,
-        "recall": 0.9423,
-        "f1": 0.8991,
+        "accuracy": 0.9,
+        "precision": 0.9057,
+        "recall": 0.9231,
+        "f1": 0.9143,
         "confusion_matrix": {
-          "tp": 49,
-          "tn": 30,
-          "fp": 8,
-          "fn": 3
+          "tp": 48,
+          "tn": 33,
+          "fp": 5,
+          "fn": 4
         },
         "brier_score": 0.1072,
         "log_loss": 0.3664
       },
       "test": {
         "sample_count": 10,
-        "accuracy": 0.6,
-        "precision": 0.4286,
-        "recall": 1.0,
-        "f1": 0.6,
+        "accuracy": 0.7,
+        "precision": 0.5,
+        "recall": 0.6667,
+        "f1": 0.5714,
         "confusion_matrix": {
-          "tp": 3,
-          "tn": 3,
-          "fp": 4,
-          "fn": 0
+          "tp": 2,
+          "tn": 5,
+          "fp": 2,
+          "fn": 1
         },
         "brier_score": 0.2228,
         "log_loss": 0.6272
@@ -193,7 +195,7 @@
       "actual_frac_similar": 0.75,
       "actual_label": 1,
       "predicted_probability": 0.585,
-      "predicted_label": 1
+      "predicted_label": 0
     },
     {
       "pair_id": "014",
@@ -202,7 +204,7 @@
       "actual_frac_similar": 0.4545,
       "actual_label": 0,
       "predicted_probability": 0.5671,
-      "predicted_label": 1
+      "predicted_label": 0
     },
     {
       "pair_id": "015",
@@ -220,7 +222,7 @@
       "actual_frac_similar": 0.4483,
       "actual_label": 0,
       "predicted_probability": 0.5569,
-      "predicted_label": 1
+      "predicted_label": 0
     },
     {
       "pair_id": "029",

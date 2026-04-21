@@ -5,6 +5,7 @@ The ETL pipeline supports two import paths into a structured SQL database:
 
 1. Pair-file ETL for local `conformers_3D/` and `images_2D/` datasets
 2. Direct import from the official ChEMBL SQLite release
+3. Compact ChEMBL API JSON imports for target-specific experiments
 
 **Flows**
 - Pair files: Extract (PDB/SVG) → Transform (parse/normalize) → Load (Database)
@@ -44,6 +45,15 @@ python scripts/etl_pipeline.py \
 python scripts/build_dataset_index.py ./data/chembl
 ```
 
+### 3b. Import Compact ChEMBL JSON
+```bash
+python scripts/etl_pipeline.py \
+  --db ./data/chembl.db \
+  --create-schema \
+  --import-compact-chembl \
+  --compact-chembl-dir ./data/chembl_small
+```
+
 ### 4. Load Pair Data into Database
 ```bash
 python scripts/etl_pipeline.py --db ./data/chembl.db --load --index ./exploration/reports/dataset_index.json
@@ -54,7 +64,16 @@ python scripts/etl_pipeline.py --db ./data/chembl.db --load --index ./exploratio
 python scripts/etl_pipeline.py --db ./data/chembl.db --stats
 ```
 
-### 6. Export Pair Data for Modeling
+### 6. Generate Activity-Derived Pairs
+```bash
+python scripts/etl_pipeline.py \
+  --db ./data/chembl.db \
+  --generate-activity-pairs \
+  --pair-threshold 1.0 \
+  --max-pairs-per-group 2000
+```
+
+### 7. Export Pair Data for Modeling
 ```bash
 python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv
 ```
@@ -108,6 +127,17 @@ Option B: official ChEMBL DB
 3. SQL database (`molecules`, `activities`)
     ↓
 4. Downstream analysis / feature engineering
+
+Option C: compact ChEMBL JSON
+1. `data/chembl_small/*_activities.json`
+    ↓
+2. etl_pipeline.py --import-compact-chembl
+    ↓
+3. SQL database (`molecules`, `activities`)
+    ↓
+4. etl_pipeline.py --generate-activity-pairs
+    ↓
+5. Target-specific experimentation with small storage cost
 ```
 
 ## Next: Build ML Model

@@ -1,0 +1,17 @@
+{
+  "cyp2d6": {
+    "target_chembl_id": "CHEMBL289",
+    "pref_name": "Cytochrome P450 2D6",
+    "activity_count_in_file": 500
+  },
+  "herg": {
+    "target_chembl_id": "CHEMBL240",
+    "pref_name": "Voltage-gated inwardly rectifying potassium channel KCNH2",
+    "activity_count_in_file": 500
+  },
+  "5ht2b": {
+    "target_chembl_id": "CHEMBL1833",
+    "pref_name": "5-hydroxytryptamine receptor 2B",
+    "activity_count_in_file": 500
+  }
+}

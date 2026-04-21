@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sqlite3
 from pathlib import Path
 
 
 DEFAULT_DB_PATH = "./data/chembl.db"
 DEFAULT_INDEX_PATH = "./exploration/reports/dataset_index.json"
+DEFAULT_COMPACT_CHEMBL_DIR = "./data/chembl_small"
 DEFAULT_CHEMBL_SQLITE_PATH = (
     "./data/chembl/raw/chembl_36_sqlite/chembl_36/chembl_36_sqlite/chembl_36.db"
 )
@@ -26,6 +28,24 @@ OPTIONAL_ACTIVITY_COLUMNS = {
     "target_name": "TEXT",
     "source_assay_id": "INTEGER",
 }
+OPTIONAL_PAIR_COLUMNS = {
+    "target_chembl_id": "TEXT",
+    "target_name": "TEXT",
+    "standard_type": "TEXT",
+    "activity_value_a": "REAL",
+    "activity_value_b": "REAL",
+    "activity_unit": "TEXT",
+    "activity_delta": "REAL",
+}
+PAIRABLE_STANDARD_TYPES = {"Ki", "IC50", "EC50"}
+UNIT_TO_NM_SCALE = {"nM": 1.0, "uM": 1000.0}
+
+
+def _chembl_numeric_id(chembl_id: str) -> int:
+    normalized = str(chembl_id).strip()
+    if not normalized.startswith("CHEMBL"):
+        raise ValueError(f"Unsupported ChEMBL identifier: {chembl_id}")
+    return int(normalized.removeprefix("CHEMBL"))
 
 
 class MolecularETLPipeline:
@@ -54,6 +74,7 @@ class MolecularETLPipeline:
         print(f"Creating database schema from {SCHEMA_PATH}...")
         self.conn.executescript(SCHEMA_PATH.read_text())
         self._ensure_activity_columns()
+        self._ensure_pair_columns()
         self.conn.commit()
         print("Schema created successfully")
 
@@ -71,6 +92,22 @@ class MolecularETLPipeline:
                 continue
             self.conn.execute(
                 f"ALTER TABLE activities ADD COLUMN {column_name} {column_type}"
+            )
+
+    def _ensure_pair_columns(self) -> None:
+        """Backfill newer pair metadata columns in older local databases."""
+        if self.conn is None:
+            raise RuntimeError("Database connection is not initialized")
+
+        existing_columns = {
+            row[1]
+            for row in self.conn.execute("PRAGMA table_info(molecule_pairs)")
+        }
+        for column_name, column_type in OPTIONAL_PAIR_COLUMNS.items():
+            if column_name in existing_columns:
+                continue
+            self.conn.execute(
+                f"ALTER TABLE molecule_pairs ADD COLUMN {column_name} {column_type}"
             )
 
     def load_from_index(self, index_json_path: str) -> None:
@@ -119,6 +156,7 @@ class MolecularETLPipeline:
             raise RuntimeError("Database connection is not initialized")
 
         self._ensure_activity_columns()
+        self._ensure_pair_columns()
         source_path = Path(source_db_path)
         if not source_path.exists():
             raise FileNotFoundError(f"ChEMBL SQLite database not found: {source_db_path}")
@@ -148,6 +186,233 @@ class MolecularETLPipeline:
             )
         )
         return summary
+
+    def import_compact_chembl_json(self, dataset_dir: str) -> dict[str, int]:
+        """Import compact ChEMBL API JSON payloads into the local database."""
+        if self.conn is None:
+            raise RuntimeError("Database connection is not initialized")
+
+        self._ensure_activity_columns()
+        self._ensure_pair_columns()
+        dataset_path = Path(dataset_dir)
+        if not dataset_path.exists():
+            raise FileNotFoundError(f"Compact ChEMBL dataset directory not found: {dataset_dir}")
+
+        activity_files = sorted(dataset_path.glob("*_activities.json"))
+        if not activity_files:
+            raise FileNotFoundError(
+                f"No *_activities.json files found in compact dataset directory: {dataset_dir}"
+            )
+
+        molecules_by_chembl_id: dict[str, dict[str, object]] = {}
+        activities: list[dict[str, object]] = []
+
+        for activity_file in activity_files:
+            payload = json.loads(activity_file.read_text())
+            for activity in payload.get("activities", []):
+                molecule_chembl_id = str(activity.get("molecule_chembl_id") or "").strip()
+                if not molecule_chembl_id:
+                    continue
+
+                molecules_by_chembl_id.setdefault(
+                    molecule_chembl_id,
+                    {
+                        "molecule_id": _chembl_numeric_id(molecule_chembl_id),
+                        "chembl_id": molecule_chembl_id,
+                        "compound_name": activity.get("molecule_pref_name")
+                        or activity.get("parent_molecule_chembl_id")
+                        or molecule_chembl_id,
+                        "smiles": activity.get("canonical_smiles") or "",
+                        "inchi": "",
+                        "molecular_weight": None,
+                        "heavy_atom_count": None,
+                    },
+                )
+                activities.append(
+                    {
+                        "activity_id": int(activity["activity_id"]),
+                        "molecule_id": _chembl_numeric_id(molecule_chembl_id),
+                        "assay_type": activity.get("assay_type"),
+                        "activity_value": float(activity["standard_value"])
+                        if activity.get("standard_value") not in {None, ""}
+                        else None,
+                        "unit": activity.get("standard_units"),
+                        "standard_type": activity.get("standard_type"),
+                        "target_chembl_id": activity.get("target_chembl_id"),
+                        "target_name": activity.get("target_pref_name"),
+                        "source_assay_id": None,
+                    }
+                )
+
+        molecules = sorted(
+            molecules_by_chembl_id.values(),
+            key=lambda row: int(row["molecule_id"]),
+        )
+        self._upsert_molecules(molecules)
+        imported_activity_count = self._insert_activities(activities)
+        self.conn.commit()
+
+        summary = {
+            "molecules": len(molecules),
+            "activities": imported_activity_count,
+            "source_files": len(activity_files),
+        }
+        print(
+            "Imported {molecules} molecules and {activities} activities from "
+            "{source_files} compact JSON files".format(**summary)
+        )
+        return summary
+
+    def generate_activity_pairs(
+        self,
+        similarity_threshold: float = 1.0,
+        max_pairs_per_group: int = 2000,
+    ) -> dict[str, int]:
+        """Build pair candidates from comparable activity records."""
+        if self.conn is None:
+            raise RuntimeError("Database connection is not initialized")
+
+        self._ensure_pair_columns()
+        aggregated_rows = self._build_activity_pairing_rows()
+        total_groups = len(aggregated_rows)
+        inserted_pairs = 0
+
+        for group_key, rows in aggregated_rows.items():
+            pair_candidates = 0
+            for left_index, left_row in enumerate(rows):
+                for right_row in rows[left_index + 1 :]:
+                    if pair_candidates >= max_pairs_per_group:
+                        break
+
+                    delta = abs(
+                        float(left_row["pchembl_value"]) - float(right_row["pchembl_value"])
+                    )
+                    similarity_score = round(1.0 / (1.0 + delta), 4)
+                    left_molecule_id = int(left_row["molecule_id"])
+                    right_molecule_id = int(right_row["molecule_id"])
+                    if left_molecule_id <= right_molecule_id:
+                        molecule_a_id = left_molecule_id
+                        molecule_b_id = right_molecule_id
+                        activity_value_a = round(float(left_row["pchembl_value"]), 4)
+                        activity_value_b = round(float(right_row["pchembl_value"]), 4)
+                    else:
+                        molecule_a_id = right_molecule_id
+                        molecule_b_id = left_molecule_id
+                        activity_value_a = round(float(right_row["pchembl_value"]), 4)
+                        activity_value_b = round(float(left_row["pchembl_value"]), 4)
+                    pair_id = (
+                        f"ACT_{left_row['target_chembl_id']}_{left_row['standard_type']}_"
+                        f"{molecule_a_id}_{molecule_b_id}"
+                    )
+                    self.conn.execute(
+                        """
+                        INSERT OR REPLACE INTO molecule_pairs
+                        (
+                            pair_id,
+                            molecule_a_id,
+                            molecule_b_id,
+                            has_conformer_pair,
+                            has_image_pair,
+                            similarity_score,
+                            is_similar,
+                            target_chembl_id,
+                            target_name,
+                            standard_type,
+                            activity_value_a,
+                            activity_value_b,
+                            activity_unit,
+                            activity_delta
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            pair_id,
+                            molecule_a_id,
+                            molecule_b_id,
+                            False,
+                            False,
+                            similarity_score,
+                            delta <= similarity_threshold,
+                            left_row["target_chembl_id"],
+                            left_row["target_name"],
+                            left_row["standard_type"],
+                            activity_value_a,
+                            activity_value_b,
+                            "pchembl",
+                            round(delta, 4),
+                        ),
+                    )
+                    inserted_pairs += 1
+                    pair_candidates += 1
+
+        self.conn.commit()
+        summary = {
+            "groups": total_groups,
+            "pairs": inserted_pairs,
+        }
+        print("Generated {pairs} activity-derived pairs across {groups} groups".format(**summary))
+        return summary
+
+    def _build_activity_pairing_rows(self) -> dict[tuple[str, str], list[dict[str, object]]]:
+        if self.conn is None:
+            raise RuntimeError("Database connection is not initialized")
+
+        rows = self.conn.execute(
+            """
+            SELECT
+                molecule_id,
+                target_chembl_id,
+                target_name,
+                standard_type,
+                unit,
+                activity_value
+            FROM activities
+            WHERE activity_value IS NOT NULL
+              AND target_chembl_id IS NOT NULL
+              AND standard_type IS NOT NULL
+            ORDER BY target_chembl_id, standard_type, molecule_id
+            """
+        ).fetchall()
+
+        grouped_values: dict[tuple[int, str, str], list[float]] = {}
+        grouped_metadata: dict[tuple[int, str, str], tuple[str, str]] = {}
+        for molecule_id, target_chembl_id, target_name, standard_type, unit, activity_value in rows:
+            if standard_type not in PAIRABLE_STANDARD_TYPES:
+                continue
+            if unit not in UNIT_TO_NM_SCALE:
+                continue
+            if activity_value is None or float(activity_value) <= 0:
+                continue
+
+            value_nm = float(activity_value) * UNIT_TO_NM_SCALE[unit]
+            pchembl_value = 9.0 - math.log10(value_nm)
+            row_key = (int(molecule_id), str(target_chembl_id), str(standard_type))
+            grouped_values.setdefault(row_key, []).append(pchembl_value)
+            grouped_metadata[row_key] = (str(target_name), "pchembl")
+
+        pairing_groups: dict[tuple[str, str], list[dict[str, object]]] = {}
+        for row_key, values in grouped_values.items():
+            molecule_id, target_chembl_id, standard_type = row_key
+            target_name, _ = grouped_metadata[row_key]
+            median_value = sorted(values)[len(values) // 2]
+            pairing_groups.setdefault((target_chembl_id, standard_type), []).append(
+                {
+                    "molecule_id": molecule_id,
+                    "target_chembl_id": target_chembl_id,
+                    "target_name": target_name,
+                    "standard_type": standard_type,
+                    "pchembl_value": median_value,
+                }
+            )
+
+        return {
+            group_key: sorted(
+                group_rows,
+                key=lambda row: (float(row["pchembl_value"]), int(row["molecule_id"])),
+            )
+            for group_key, group_rows in pairing_groups.items()
+            if len(group_rows) >= 2
+        }
 
     def _fetch_chembl_molecules(
         self,
@@ -374,6 +639,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--compact-chembl-dir",
+        type=str,
+        default=DEFAULT_COMPACT_CHEMBL_DIR,
+        help=(
+            "Path to the compact ChEMBL JSON directory "
+            f"(default: {DEFAULT_COMPACT_CHEMBL_DIR})"
+        ),
+    )
+    parser.add_argument(
         "--create-schema",
         action="store_true",
         help="Create the destination schema",
@@ -387,6 +661,11 @@ def main() -> int:
         "--import-chembl-sqlite",
         action="store_true",
         help="Import molecules from the official ChEMBL SQLite database",
+    )
+    parser.add_argument(
+        "--import-compact-chembl",
+        action="store_true",
+        help="Import molecules and activities from compact ChEMBL API JSON files",
     )
     parser.add_argument(
         "--include-activities",
@@ -407,6 +686,23 @@ def main() -> int:
         "--export",
         type=str,
         help="Export pair data to CSV",
+    )
+    parser.add_argument(
+        "--generate-activity-pairs",
+        action="store_true",
+        help="Generate molecule pairs from imported activity records",
+    )
+    parser.add_argument(
+        "--pair-threshold",
+        type=float,
+        default=1.0,
+        help="Maximum pChEMBL delta to mark an activity-derived pair as similar",
+    )
+    parser.add_argument(
+        "--max-pairs-per-group",
+        type=int,
+        default=2000,
+        help="Maximum number of generated pairs per target/activity-type group",
     )
     parser.add_argument(
         "--stats",
@@ -435,6 +731,15 @@ def main() -> int:
                 limit=args.limit,
                 include_activities=args.include_activities,
                 activity_limit=args.activity_limit,
+            )
+
+        if args.import_compact_chembl:
+            pipeline.import_compact_chembl_json(args.compact_chembl_dir)
+
+        if args.generate_activity_pairs:
+            pipeline.generate_activity_pairs(
+                similarity_threshold=args.pair_threshold,
+                max_pairs_per_group=args.max_pairs_per_group,
             )
 
         if args.stats:
