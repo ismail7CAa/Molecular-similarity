@@ -9,6 +9,7 @@ Flows supported:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import sqlite3
@@ -563,22 +564,155 @@ class MolecularETLPipeline:
         rows = self.conn.execute(
             """
             SELECT
-                pair_id,
-                has_conformer_pair,
-                has_image_pair,
-                similarity_score,
-                is_similar
+                mp.pair_id,
+                mp.molecule_a_id,
+                mp.molecule_b_id,
+                mp.has_conformer_pair,
+                mp.has_image_pair,
+                mp.similarity_score,
+                mp.is_similar,
+                mp.target_chembl_id,
+                mp.target_name,
+                mp.standard_type,
+                mp.activity_value_a,
+                mp.activity_value_b,
+                mp.activity_unit,
+                mp.activity_delta,
+                ma.chembl_id,
+                mb.chembl_id,
+                ma.compound_name,
+                mb.compound_name,
+                ma.smiles,
+                mb.smiles,
+                ma.molecular_weight,
+                mb.molecular_weight,
+                ma.heavy_atom_count,
+                mb.heavy_atom_count
             FROM molecule_pairs
-            WHERE has_conformer_pair AND has_image_pair
+            AS mp
+            LEFT JOIN molecules AS ma ON ma.molecule_id = mp.molecule_a_id
+            LEFT JOIN molecules AS mb ON mb.molecule_id = mp.molecule_b_id
+            WHERE mp.is_similar IS NOT NULL
             """
         ).fetchall()
 
-        with open(output_path, "w") as handle:
-            handle.write("pair_id,has_conformer,has_image,similarity_score,is_similar\n")
+        fieldnames = [
+            "pair_id",
+            "split",
+            "molecule_a_id",
+            "molecule_b_id",
+            "molecule_a_chembl_id",
+            "molecule_b_chembl_id",
+            "compound_name_a",
+            "compound_name_b",
+            "target_chembl_id",
+            "target_name",
+            "standard_type",
+            "has_conformer_pair",
+            "has_image_pair",
+            "similarity_score",
+            "is_similar",
+            "activity_value_a",
+            "activity_value_b",
+            "activity_unit",
+            "activity_delta",
+            "activity_value_mean",
+            "smiles_a",
+            "smiles_b",
+            "smiles_length_a",
+            "smiles_length_b",
+            "smiles_length_abs_delta",
+            "molecular_weight_a",
+            "molecular_weight_b",
+            "molecular_weight_abs_delta",
+            "heavy_atom_count_a",
+            "heavy_atom_count_b",
+            "heavy_atom_count_abs_delta",
+        ]
+        with open(output_path, "w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
             for row in rows:
-                handle.write(",".join(str(value) for value in row) + "\n")
+                (
+                    pair_id,
+                    molecule_a_id,
+                    molecule_b_id,
+                    has_conformer_pair,
+                    has_image_pair,
+                    similarity_score,
+                    is_similar,
+                    target_chembl_id,
+                    target_name,
+                    standard_type,
+                    activity_value_a,
+                    activity_value_b,
+                    activity_unit,
+                    activity_delta,
+                    chembl_id_a,
+                    chembl_id_b,
+                    compound_name_a,
+                    compound_name_b,
+                    smiles_a,
+                    smiles_b,
+                    molecular_weight_a,
+                    molecular_weight_b,
+                    heavy_atom_count_a,
+                    heavy_atom_count_b,
+                ) = row
+                smiles_a = smiles_a or ""
+                smiles_b = smiles_b or ""
+                weight_a = float(molecular_weight_a) if molecular_weight_a is not None else 0.0
+                weight_b = float(molecular_weight_b) if molecular_weight_b is not None else 0.0
+                heavy_a = int(heavy_atom_count_a) if heavy_atom_count_a is not None else 0
+                heavy_b = int(heavy_atom_count_b) if heavy_atom_count_b is not None else 0
+                activity_a = float(activity_value_a) if activity_value_a is not None else 0.0
+                activity_b = float(activity_value_b) if activity_value_b is not None else 0.0
+                writer.writerow(
+                    {
+                        "pair_id": pair_id,
+                        "split": self._deterministic_split(str(pair_id)),
+                        "molecule_a_id": molecule_a_id,
+                        "molecule_b_id": molecule_b_id,
+                        "molecule_a_chembl_id": chembl_id_a,
+                        "molecule_b_chembl_id": chembl_id_b,
+                        "compound_name_a": compound_name_a or "",
+                        "compound_name_b": compound_name_b or "",
+                        "target_chembl_id": target_chembl_id or "",
+                        "target_name": target_name or "",
+                        "standard_type": standard_type or "",
+                        "has_conformer_pair": int(bool(has_conformer_pair)),
+                        "has_image_pair": int(bool(has_image_pair)),
+                        "similarity_score": float(similarity_score) if similarity_score is not None else 0.0,
+                        "is_similar": int(bool(is_similar)),
+                        "activity_value_a": activity_a,
+                        "activity_value_b": activity_b,
+                        "activity_unit": activity_unit or "",
+                        "activity_delta": float(activity_delta) if activity_delta is not None else 0.0,
+                        "activity_value_mean": round((activity_a + activity_b) / 2.0, 4),
+                        "smiles_a": smiles_a,
+                        "smiles_b": smiles_b,
+                        "smiles_length_a": len(smiles_a),
+                        "smiles_length_b": len(smiles_b),
+                        "smiles_length_abs_delta": abs(len(smiles_a) - len(smiles_b)),
+                        "molecular_weight_a": weight_a,
+                        "molecular_weight_b": weight_b,
+                        "molecular_weight_abs_delta": round(abs(weight_a - weight_b), 4),
+                        "heavy_atom_count_a": heavy_a,
+                        "heavy_atom_count_b": heavy_b,
+                        "heavy_atom_count_abs_delta": abs(heavy_a - heavy_b),
+                    }
+                )
 
         print(f"Exported {len(rows)} records")
+
+    @staticmethod
+    def _deterministic_split(pair_id: str) -> str:
+        bucket = sum(pair_id.encode("utf-8")) % 10
+        if bucket < 8:
+            return "train"
+        if bucket == 8:
+            return "val"
+        return "test"
 
     def get_statistics(self) -> dict[str, object]:
         """Summarize the destination database contents."""
