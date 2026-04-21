@@ -16,6 +16,11 @@ dependencies = [
   "umap-learn>=0.5",
 ]
 
+[project.scripts]
+molecular-similarity-linear-baseline = "molecular_similarity.linear_regression_baseline:main"
+molecular-similarity-sql-activity-model = "molecular_similarity.sql_activity_model:main"
+molecular-similarity-threshold-model = "molecular_similarity.threshold_model:main"
+
 [project.optional-dependencies]
 dev = [
   "build>=1.2",

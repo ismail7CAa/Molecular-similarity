@@ -5,7 +5,7 @@ Initial repository scaffold for the Molecular-similarity project.
 ## Local Environment
 
 1. Create the virtual environment:
-   `python3 -m venv .venv`
+   `python3.11 -m venv .venv`
 2. Activate it:
    `source .venv/bin/activate`
 3. Install the project with development dependencies:
@@ -29,7 +29,33 @@ Use the exploration workspace to describe and inspect datasets before modeling.
    `python scripts/run_linear_regression_baseline.py`
 6. Train a threshold-based classifier for similar vs not similar pairs:
    `python scripts/run_similarity_threshold_model.py`
-7. Open the generated report files in `exploration/reports/`
+7. Export SQL-derived activity pairs for modeling:
+   `python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv`
+8. Train the SQL-backed activity-pair model:
+   `python scripts/run_sql_activity_pair_model.py ./data/chembl_modeling.csv`
+9. Open the generated report files in `exploration/reports/`
+
+## Reproducibility
+
+This project aims to keep the modeling path reproducible and scriptable.
+
+- Prefer Python `3.11` for the supported RDKit workflow.
+- The SQL activity-pair model is implemented as reusable package code in `src/molecular_similarity/sql_activity_model.py`.
+- The threshold classifier is implemented as reusable package code in `src/molecular_similarity/threshold_model.py`.
+- The linear/logistic baseline is implemented as reusable package code in `src/molecular_similarity/linear_regression_baseline.py`.
+- You can run the same model through either:
+  `python scripts/run_sql_activity_pair_model.py ./data/chembl_modeling.csv`
+  or
+  `molecular-similarity-sql-activity-model ./data/chembl_modeling.csv`
+- You can run the baseline suite through either:
+  `python scripts/run_linear_regression_baseline.py`
+  or
+  `molecular-similarity-linear-baseline`
+- You can run the threshold classifier through either:
+  `python scripts/run_similarity_threshold_model.py`
+  or
+  `molecular-similarity-threshold-model`
+- Tests cover ETL, report generation, and the basic CLI surface with `pytest`.
 
 ## CI/CD
 
