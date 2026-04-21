@@ -1,6 +1,6 @@
 # SQL Activity Pair Model
 
-- Export path: /Users/ismailcherkaouiaadil/Library/Mobile Documents/com~apple~CloudDocs/Molecular-similarity/data/chembl_modeling.csv
+- Export path: data/chembl_modeling.csv
 - Selected feature set: structure_enriched
 - Selected probability threshold: 0.45
 - Selected L2 penalty: 0.01
