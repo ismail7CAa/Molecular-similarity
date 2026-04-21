@@ -2,6 +2,10 @@
 
 Initial repository scaffold for the Molecular-similarity project.
 
+## Project Status
+
+This project is still under active development and deployment. The ETL, modeling, and CLI workflows are already usable for experimentation, but the overall system should not yet be treated as a finalized production deployment.
+
 ## Local Environment
 
 1. Create the virtual environment:
