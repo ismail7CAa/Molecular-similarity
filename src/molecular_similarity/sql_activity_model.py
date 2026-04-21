@@ -316,6 +316,36 @@ def evaluate_probabilities(
     }
 
 
+def evaluate_grouped_probabilities(
+    rows: list[dict[str, object]],
+    probabilities: list[float],
+    threshold: float = DEFAULT_THRESHOLD,
+    group_key: str = "target_name",
+) -> list[dict[str, object]]:
+    grouped_rows: dict[str, list[tuple[dict[str, object], float]]] = {}
+    for row, probability in zip(rows, probabilities, strict=True):
+        group_name = str(row[group_key])
+        grouped_rows.setdefault(group_name, []).append((row, probability))
+
+    group_reports: list[dict[str, object]] = []
+    for group_name in sorted(grouped_rows):
+        entries = grouped_rows[group_name]
+        group_targets = [int(row["is_similar"]) for row, _ in entries]
+        group_probabilities = [float(probability) for _, probability in entries]
+        metrics = evaluate_probabilities(group_targets, group_probabilities, threshold=threshold)
+        group_reports.append(
+            {
+                "group_key": group_key,
+                "group_name": group_name,
+                "sample_count": len(entries),
+                "similar_count": sum(group_targets),
+                "dissimilar_count": len(entries) - sum(group_targets),
+                "metrics": metrics,
+            }
+        )
+    return group_reports
+
+
 def load_rows(path: Path) -> list[dict[str, object]]:
     with path.open() as handle:
         reader = csv.DictReader(handle)
@@ -632,6 +662,7 @@ def build_report(export_path: Path) -> dict[str, object]:
     test_probabilities = [
         float(probability) for probability in model.predict_proba(test_features)[:, 1]
     ]
+    selected_threshold = float(selected["threshold"])
     return {
         "configuration": {
             "export_path": str(export_path),
@@ -669,12 +700,26 @@ def build_report(export_path: Path) -> dict[str, object]:
                 "development": evaluate_probabilities(
                     development_targets,
                     development_probabilities,
-                    threshold=float(selected["threshold"]),
+                    threshold=selected_threshold,
                 ),
                 "test": evaluate_probabilities(
                     test_targets,
                     test_probabilities,
-                    threshold=float(selected["threshold"]),
+                    threshold=selected_threshold,
+                ),
+            },
+            "group_metrics": {
+                "development_by_target": evaluate_grouped_probabilities(
+                    development_rows,
+                    development_probabilities,
+                    threshold=selected_threshold,
+                    group_key="target_name",
+                ),
+                "test_by_target": evaluate_grouped_probabilities(
+                    split_to_rows["test"],
+                    test_probabilities,
+                    threshold=selected_threshold,
+                    group_key="target_name",
                 ),
             },
             "coefficients": {
@@ -750,6 +795,38 @@ def render_markdown(report: dict[str, object]) -> str:
         lines.append(
             f"| {split_name} | {metrics['log_loss']} | {metrics['brier_score']} | "
             f"{metrics['accuracy']} | {metrics['precision']} | {metrics['recall']} | {metrics['f1']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Per-Target Test Metrics",
+            "",
+            "| target | samples | similar | dissimilar | log_loss | brier | accuracy | precision | recall | f1 | tp | tn | fp | fn |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for group_report in report["model"]["group_metrics"]["test_by_target"]:
+        metrics = group_report["metrics"]
+        confusion = metrics["confusion_matrix"]
+        lines.append(
+            "| {group_name} | {sample_count} | {similar_count} | {dissimilar_count} | "
+            "{log_loss} | {brier_score} | {accuracy} | {precision} | {recall} | {f1} | "
+            "{tp} | {tn} | {fp} | {fn} |".format(
+                group_name=group_report["group_name"],
+                sample_count=group_report["sample_count"],
+                similar_count=group_report["similar_count"],
+                dissimilar_count=group_report["dissimilar_count"],
+                log_loss=metrics["log_loss"],
+                brier_score=metrics["brier_score"],
+                accuracy=metrics["accuracy"],
+                precision=metrics["precision"],
+                recall=metrics["recall"],
+                f1=metrics["f1"],
+                tp=confusion["tp"],
+                tn=confusion["tn"],
+                fp=confusion["fp"],
+                fn=confusion["fn"],
+            )
         )
     lines.extend(
         [

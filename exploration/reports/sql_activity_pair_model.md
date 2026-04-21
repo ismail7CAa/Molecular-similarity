@@ -19,6 +19,14 @@
 | development | 0.5221 | 0.1736 | 0.7449 | 0.6554 | 0.5651 | 0.6069 |
 | test | 0.5301 | 0.1767 | 0.7313 | 0.6243 | 0.5567 | 0.5885 |
 
+## Per-Target Test Metrics
+
+| target | samples | similar | dissimilar | log_loss | brier | accuracy | precision | recall | f1 | tp | tn | fp | fn |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 5-hydroxytryptamine receptor 2B | 376 | 140 | 236 | 0.5706 | 0.195 | 0.6915 | 0.5896 | 0.5643 | 0.5766 | 79 | 181 | 55 | 61 |
+| Cytochrome P450 2D6 | 399 | 152 | 247 | 0.5396 | 0.178 | 0.7469 | 0.6783 | 0.6382 | 0.6576 | 97 | 201 | 46 | 55 |
+| Voltage-gated inwardly rectifying potassium channel KCNH2 | 375 | 105 | 270 | 0.4794 | 0.1571 | 0.7547 | 0.5844 | 0.4286 | 0.4945 | 45 | 238 | 32 | 60 |
+
 ## Test Predictions
 
 | pair_id | target | type | similarity_score | activity_delta | actual_label | probability | predicted_label |

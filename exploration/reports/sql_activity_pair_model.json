@@ -175,6 +175,144 @@
         "log_loss": 0.5301
       }
     },
+    "group_metrics": {
+      "development_by_target": [
+        {
+          "group_key": "target_name",
+          "group_name": "5-hydroxytryptamine receptor 2B",
+          "sample_count": 3639,
+          "similar_count": 1401,
+          "dissimilar_count": 2238,
+          "metrics": {
+            "sample_count": 3639,
+            "accuracy": 0.6854,
+            "precision": 0.5997,
+            "recall": 0.5496,
+            "f1": 0.5736,
+            "confusion_matrix": {
+              "tp": 770,
+              "tn": 1724,
+              "fp": 514,
+              "fn": 631
+            },
+            "brier_score": 0.2002,
+            "log_loss": 0.5837
+          }
+        },
+        {
+          "group_key": "target_name",
+          "group_name": "Cytochrome P450 2D6",
+          "sample_count": 3601,
+          "similar_count": 1420,
+          "dissimilar_count": 2181,
+          "metrics": {
+            "sample_count": 3601,
+            "accuracy": 0.7567,
+            "precision": 0.7064,
+            "recall": 0.6556,
+            "f1": 0.6801,
+            "confusion_matrix": {
+              "tp": 931,
+              "tn": 1794,
+              "fp": 387,
+              "fn": 489
+            },
+            "brier_score": 0.1674,
+            "log_loss": 0.5055
+          }
+        },
+        {
+          "group_key": "target_name",
+          "group_name": "Voltage-gated inwardly rectifying potassium channel KCNH2",
+          "sample_count": 3625,
+          "similar_count": 966,
+          "dissimilar_count": 2659,
+          "metrics": {
+            "sample_count": 3625,
+            "accuracy": 0.7928,
+            "precision": 0.6621,
+            "recall": 0.4545,
+            "f1": 0.539,
+            "confusion_matrix": {
+              "tp": 439,
+              "tn": 2435,
+              "fp": 224,
+              "fn": 527
+            },
+            "brier_score": 0.1531,
+            "log_loss": 0.4768
+          }
+        }
+      ],
+      "test_by_target": [
+        {
+          "group_key": "target_name",
+          "group_name": "5-hydroxytryptamine receptor 2B",
+          "sample_count": 376,
+          "similar_count": 140,
+          "dissimilar_count": 236,
+          "metrics": {
+            "sample_count": 376,
+            "accuracy": 0.6915,
+            "precision": 0.5896,
+            "recall": 0.5643,
+            "f1": 0.5766,
+            "confusion_matrix": {
+              "tp": 79,
+              "tn": 181,
+              "fp": 55,
+              "fn": 61
+            },
+            "brier_score": 0.195,
+            "log_loss": 0.5706
+          }
+        },
+        {
+          "group_key": "target_name",
+          "group_name": "Cytochrome P450 2D6",
+          "sample_count": 399,
+          "similar_count": 152,
+          "dissimilar_count": 247,
+          "metrics": {
+            "sample_count": 399,
+            "accuracy": 0.7469,
+            "precision": 0.6783,
+            "recall": 0.6382,
+            "f1": 0.6576,
+            "confusion_matrix": {
+              "tp": 97,
+              "tn": 201,
+              "fp": 46,
+              "fn": 55
+            },
+            "brier_score": 0.178,
+            "log_loss": 0.5396
+          }
+        },
+        {
+          "group_key": "target_name",
+          "group_name": "Voltage-gated inwardly rectifying potassium channel KCNH2",
+          "sample_count": 375,
+          "similar_count": 105,
+          "dissimilar_count": 270,
+          "metrics": {
+            "sample_count": 375,
+            "accuracy": 0.7547,
+            "precision": 0.5844,
+            "recall": 0.4286,
+            "f1": 0.4945,
+            "confusion_matrix": {
+              "tp": 45,
+              "tn": 238,
+              "fp": 32,
+              "fn": 60
+            },
+            "brier_score": 0.1571,
+            "log_loss": 0.4794
+          }
+        }
+      ]
+    },
     "coefficients": {
       "bias": -0.352999,
       "weights": {

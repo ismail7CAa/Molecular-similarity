@@ -1,6 +1,6 @@
 # Molecular-similarity
 
-Initial repository scaffold for the Molecular-similarity project.
+End-to-End molecular similarity project focused on reproducible data exploration, ETL, and baseline modeling workflows.
 
 ## Project Status
 

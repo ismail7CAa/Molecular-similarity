@@ -62,6 +62,8 @@ def test_build_report_trains_on_sql_activity_export(tmp_path) -> None:
         "structure_plus_context",
     }
     assert set(report["model"]["metrics"]) == {"development", "test"}
+    assert report["model"]["group_metrics"]["test_by_target"][0]["group_name"] == "Target2"
+    assert report["model"]["group_metrics"]["test_by_target"][0]["metrics"]["accuracy"] == 1.0
     assert len(report["test_examples"]) == 2
 
 
@@ -102,6 +104,26 @@ def test_render_markdown_includes_sql_model_summary() -> None:
                     "f1": 1.0,
                 },
             }
+            ,
+            "group_metrics": {
+                "test_by_target": [
+                    {
+                        "group_name": "Target2",
+                        "sample_count": 1,
+                        "similar_count": 1,
+                        "dissimilar_count": 0,
+                        "metrics": {
+                            "log_loss": 0.2,
+                            "brier_score": 0.02,
+                            "accuracy": 1.0,
+                            "precision": 1.0,
+                            "recall": 1.0,
+                            "f1": 1.0,
+                            "confusion_matrix": {"tp": 1, "tn": 0, "fp": 0, "fn": 0},
+                        },
+                    }
+                ]
+            }
         },
         "test_examples": [
             {
@@ -121,6 +143,8 @@ def test_render_markdown_includes_sql_model_summary() -> None:
 
     assert "# SQL Activity Pair Model" in markdown
     assert "## Classification Metrics" in markdown
+    assert "## Per-Target Test Metrics" in markdown
+    assert "| Target2 | 1 | 1 | 0 | 0.2 | 0.02 | 1.0 | 1.0 | 1.0 | 1.0 | 1 | 0 | 0 | 0 |" in markdown
     assert "| p7 | Target2 | IC50 | 0.83 | 0.1 | 1 | 0.95 | 1 |" in markdown
 
 
