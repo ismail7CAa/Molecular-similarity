@@ -9,7 +9,6 @@ from typing import Sequence
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 import matplotlib.patheffects as pe
 
@@ -42,8 +41,10 @@ PALETTE: dict[str, tuple[str, str]] = {
 
 @dataclass
 class Box:
-    x: float; y: float
-    w: float; h: float
+    x: float
+    y: float
+    w: float
+    h: float
     label: str
     icon: str          # single Unicode glyph, always renders in DejaVu / basic fonts
     icon_color: str    # accent colour for the icon
@@ -51,25 +52,36 @@ class Box:
     color_key: str
 
     @property
-    def cx(self): return self.x + self.w / 2
+    def cx(self) -> float:
+        return self.x + self.w / 2
+
     @property
-    def cy(self): return self.y + self.h / 2
-    def right(self):  return (self.x + self.w, self.cy)
-    def left(self):   return (self.x, self.cy)
-    def top(self):    return (self.cx, self.y + self.h)
-    def bottom(self): return (self.cx, self.y)
+    def cy(self) -> float:
+        return self.y + self.h / 2
+
+    def right(self) -> tuple[float, float]:
+        return (self.x + self.w, self.cy)
+
+    def left(self) -> tuple[float, float]:
+        return (self.x, self.cy)
+
+    def top(self) -> tuple[float, float]:
+        return (self.cx, self.y + self.h)
+
+    def bottom(self) -> tuple[float, float]:
+        return (self.cx, self.y)
 
 
 @dataclass
 class Arrow:
     start: tuple[float, float]
-    end:   tuple[float, float]
-    rad:   float = 0.0
+    end: tuple[float, float]
+    rad: float = 0.0
 
 
 @dataclass
 class PipelineLayout:
-    boxes:  list[Box]   = field(default_factory=list)
+    boxes: list[Box] = field(default_factory=list)
     arrows: list[Arrow] = field(default_factory=list)
 
     @classmethod
