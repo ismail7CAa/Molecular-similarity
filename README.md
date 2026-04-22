@@ -1,7 +1,7 @@
 # Molecular-similarity
 
-I built this project as an end-to-end molecular similarity workflow.
-The idea came, as a project to build a good precise model for predicting molecular similarity based on a given Threshold, to make the Regulatory Affairs agences take some precise and fast decision about some Pharmaceutical used molecules, if they are Plausible or note, and give a license for them.
+I built this project as an end-to-end molecular similarity workflow that integrates data exploration, ETL, SQL-based preprocessing, baseline modeling, and reproducible evaluation to support more precise and efficient decision-making in pharmaceutical regulatory contexts.
+
 I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
 
 
