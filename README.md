@@ -1,8 +1,9 @@
 # Molecular-similarity
 
-I built this project as an end-to-end molecular similarity workflow. I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
+I built this project as an end-to-end molecular similarity workflow.
+The idea came, as a project to build a good precise model for predicting molecular similarity based on a given Threshold, to make the Regulatory Affairs agences take some precise and fast decision about some Pharmaceutical used molecules, if they are Plausible or note, and give a license for them.
+I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
 
-The project is still under active development and deployment. I can run the data exploration, ETL, feature engineering, training, evaluation, and report generation locally, but I do not present it as a finished production system yet.
 
 ## What I Built
 
@@ -36,13 +37,14 @@ I used the following project flow:
    - Markdown reports
    - precision-first plots
 
-I also added a figure generator in:
+And here is the pipeline workflow generator in:
 `scripts/generate_pipeline_figure.py`
 
-Running it writes:
 `exploration/reports/project_pipeline.png`
 
 The figure shows the exact pipeline from raw inputs to ETL, SQL storage, model training, precision evaluation, and reproducibility tooling.
+
+![Project pipeline](exploration/reports/project_pipeline.png)
 
 ## Main Results
 
@@ -56,7 +58,7 @@ Held-out SQL test metrics:
 - F1: `0.5885`
 - log loss: `0.5301`
 
-Precision is the priority in this project, so I focused the report on where the model is strongest by target.
+Precision is the priority in this project, so I focused more on making the model preciser by target.
 
 Per-target held-out precision:
 
@@ -77,19 +79,17 @@ Those smaller experiments were useful for debugging and validating the workflow,
 
 ## Reports And Visual Outputs
 
-I generated the main SQL report here:
+The generated the main SQL report can be found here:
 
 - `exploration/reports/sql_activity_pair_model.json`
 - `exploration/reports/sql_activity_pair_model.md`
 
-I generated precision-first visual outputs here:
+The generated precision-first visual outputs can also be found here:
 
 - `exploration/reports/sql_activity_pair_precision_by_target.png`
 - `exploration/reports/sql_activity_pair_precision_recall.png`
 
-I also generated the full project pipeline figure here:
 
-- `exploration/reports/project_pipeline.png`
 
 ## Reproducibility
 
@@ -112,7 +112,7 @@ I can run the main workflows either from the scripts or from the installed CLIs:
 
 ## Local Setup
 
-1. Create the virtual environment:
+1. The virtual environment:
    `python3.11 -m venv .venv`
 2. Activate it:
    `source .venv/bin/activate`
@@ -161,11 +161,10 @@ Run the default smoke workflow:
 The default container command generates:
 `exploration/reports/project_pipeline.png`
 
-If I want to run the heavier SQL precision workflow inside Docker, I use an explicit command:
+For running the heavier SQL precision workflow inside Docker:
 
 `docker run --rm -v "$(pwd)/exploration/reports:/app/exploration/reports" molecular-similarity molecular-similarity-sql-activity-model ./data/chembl_modeling.csv --reports-dir ./exploration/reports`
 
-I changed the default container command to the lighter pipeline-figure workflow because it finishes quickly and is better as a Docker smoke test. The SQL report still works as an optional container command, but it is heavier and slower.
 
 ## Project Status
 
@@ -181,8 +180,6 @@ What is already solid:
 
 What is still not final:
 
-- Docker runtime verification on this machine
-- stronger production deployment
 - more model improvement for higher precision on every target, especially `KCNH2`
 
 ## CI/CD
