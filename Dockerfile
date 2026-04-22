@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    MPLBACKEND=Agg
+    MPLBACKEND=Agg \
+    MPLCONFIGDIR=/tmp/matplotlib
 
 WORKDIR /app
 
@@ -13,6 +14,6 @@ COPY sql ./sql
 COPY data ./data
 COPY exploration ./exploration
 
-RUN pip install --no-cache-dir .
+RUN mkdir -p /tmp/matplotlib && pip install --no-cache-dir .
 
-CMD ["molecular-similarity-sql-activity-model", "./data/chembl_modeling.csv", "--reports-dir", "./exploration/reports"]
+CMD ["python", "scripts/generate_pipeline_figure.py"]
