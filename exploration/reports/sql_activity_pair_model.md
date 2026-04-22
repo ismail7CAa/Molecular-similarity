@@ -7,6 +7,7 @@
 - Rows: 12015
 - Split counts: train=9618, val=1247, test=1150
 - Label balance: similar=4184, dissimilar=7831
+- Precision-focused highlight: Cytochrome P450 2D6 has the strongest test precision at 0.6783
 
 ## Validation Selection
 
@@ -26,6 +27,17 @@
 | 5-hydroxytryptamine receptor 2B | 376 | 140 | 236 | 0.5706 | 0.195 | 0.6915 | 0.5896 | 0.5643 | 0.5766 | 79 | 181 | 55 | 61 |
 | Cytochrome P450 2D6 | 399 | 152 | 247 | 0.5396 | 0.178 | 0.7469 | 0.6783 | 0.6382 | 0.6576 | 97 | 201 | 46 | 55 |
 | Voltage-gated inwardly rectifying potassium channel KCNH2 | 375 | 105 | 270 | 0.4794 | 0.1571 | 0.7547 | 0.5844 | 0.4286 | 0.4945 | 45 | 238 | 32 | 60 |
+
+## Precision View
+
+- Best precision target: Cytochrome P450 2D6 (precision=0.6783, recall=0.6382)
+- Lowest recall target: Voltage-gated inwardly rectifying potassium channel KCNH2 (precision=0.5844, recall=0.4286)
+
+## Plots
+
+![Precision by target](sql_activity_pair_precision_by_target.png)
+
+![Precision recall profile](sql_activity_pair_precision_recall.png)
 
 ## Test Predictions
 

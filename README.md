@@ -61,6 +61,26 @@ This project aims to keep the modeling path reproducible and scriptable.
   `molecular-similarity-threshold-model`
 - Tests cover ETL, report generation, and the basic CLI surface with `pytest`.
 
+## Precision Visualization
+
+The strongest current model presentation is the SQL-backed activity-pair report in `exploration/reports/sql_activity_pair_model.md`.
+
+- It includes held-out overall metrics and per-target metrics for `Cytochrome P450 2D6`, `5-hydroxytryptamine receptor 2B`, and `KCNH2`.
+- It also generates precision-first figures that highlight where the model is strongest on unseen data.
+- The current best emphasis is precision rather than recall, so the report is designed to make that tradeoff visible target by target.
+
+## Docker
+
+You can run the packaged SQL precision report inside Docker:
+
+1. Build the image:
+   `docker build -t molecular-similarity .`
+2. Run the default SQL report workflow:
+   `docker run --rm -v "$(pwd)/exploration/reports:/app/exploration/reports" molecular-similarity`
+
+The default container command runs:
+`molecular-similarity-sql-activity-model ./data/chembl_modeling.csv --reports-dir ./exploration/reports`
+
 ## CI/CD
 
 This repository includes a starter GitHub Actions pipeline in

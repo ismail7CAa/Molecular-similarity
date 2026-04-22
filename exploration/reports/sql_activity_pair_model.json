@@ -598,5 +598,23 @@
       "predicted_probability": 0.3103,
       "predicted_label": 0
     }
-  ]
+  ],
+  "precision_priority_summary": {
+    "best_precision_target": {
+      "target_name": "Cytochrome P450 2D6",
+      "precision": 0.6783,
+      "recall": 0.6382,
+      "f1": 0.6576
+    },
+    "lowest_recall_target": {
+      "target_name": "Voltage-gated inwardly rectifying potassium channel KCNH2",
+      "precision": 0.5844,
+      "recall": 0.4286,
+      "f1": 0.4945
+    }
+  },
+  "plots": {
+    "precision_by_target": "sql_activity_pair_precision_by_target.png",
+    "precision_recall_profile": "sql_activity_pair_precision_recall.png"
+  }
 }

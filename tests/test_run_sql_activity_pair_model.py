@@ -64,6 +64,7 @@ def test_build_report_trains_on_sql_activity_export(tmp_path) -> None:
     assert set(report["model"]["metrics"]) == {"development", "test"}
     assert report["model"]["group_metrics"]["test_by_target"][0]["group_name"] == "Target2"
     assert report["model"]["group_metrics"]["test_by_target"][0]["metrics"]["accuracy"] == 1.0
+    assert report["precision_priority_summary"]["best_precision_target"]["target_name"] == "Target2"
     assert len(report["test_examples"]) == 2
 
 
@@ -79,6 +80,20 @@ def test_render_markdown_includes_sql_model_summary() -> None:
             "row_count": 8,
             "split_counts": {"train": 4, "val": 2, "test": 2},
             "label_balance": {"similar": 4, "dissimilar": 4},
+        },
+        "precision_priority_summary": {
+            "best_precision_target": {
+                "target_name": "Target2",
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+            },
+            "lowest_recall_target": {
+                "target_name": "Target2",
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+            },
         },
         "model_selection": {
             "selected_configuration": {
@@ -125,6 +140,10 @@ def test_render_markdown_includes_sql_model_summary() -> None:
                 ]
             }
         },
+        "plots": {
+            "precision_by_target": "sql_activity_pair_precision_by_target.png",
+            "precision_recall_profile": "sql_activity_pair_precision_recall.png",
+        },
         "test_examples": [
             {
                 "pair_id": "p7",
@@ -144,6 +163,9 @@ def test_render_markdown_includes_sql_model_summary() -> None:
     assert "# SQL Activity Pair Model" in markdown
     assert "## Classification Metrics" in markdown
     assert "## Per-Target Test Metrics" in markdown
+    assert "## Precision View" in markdown
+    assert "## Plots" in markdown
+    assert "sql_activity_pair_precision_by_target.png" in markdown
     assert "| Target2 | 1 | 1 | 0 | 0.2 | 0.02 | 1.0 | 1.0 | 1.0 | 1.0 | 1 | 0 | 0 | 0 |" in markdown
     assert "| p7 | Target2 | IC50 | 0.83 | 0.1 | 1 | 0.95 | 1 |" in markdown
 
@@ -204,3 +226,5 @@ def test_main_writes_reports_via_cli(tmp_path, monkeypatch) -> None:
     assert exit_code == 0
     assert (reports_dir / "sql_activity_pair_model.json").exists()
     assert (reports_dir / "sql_activity_pair_model.md").exists()
+    assert (reports_dir / "sql_activity_pair_precision_by_target.png").exists()
+    assert (reports_dir / "sql_activity_pair_precision_recall.png").exists()

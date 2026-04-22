@@ -6,9 +6,13 @@ import json
 import math
 from pathlib import Path
 
+import matplotlib
 from rdkit import Chem, DataStructs, RDLogger
 from rdkit.Chem import Descriptors, MACCSkeys, rdFingerprintGenerator, rdMolDescriptors
 from sklearn.linear_model import LogisticRegression
+
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
 
 
 DEFAULT_THRESHOLD = 0.5
@@ -346,6 +350,128 @@ def evaluate_grouped_probabilities(
     return group_reports
 
 
+def summarize_precision_priority(report: dict[str, object]) -> dict[str, object]:
+    test_groups = list(report["model"]["group_metrics"]["test_by_target"])
+    best_precision = max(
+        test_groups,
+        key=lambda item: (
+            float(item["metrics"]["precision"]),
+            float(item["metrics"]["recall"]),
+        ),
+    )
+    weakest_recall = min(
+        test_groups,
+        key=lambda item: (
+            float(item["metrics"]["recall"]),
+            -float(item["metrics"]["precision"]),
+        ),
+    )
+    return {
+        "best_precision_target": {
+            "target_name": best_precision["group_name"],
+            "precision": best_precision["metrics"]["precision"],
+            "recall": best_precision["metrics"]["recall"],
+            "f1": best_precision["metrics"]["f1"],
+        },
+        "lowest_recall_target": {
+            "target_name": weakest_recall["group_name"],
+            "precision": weakest_recall["metrics"]["precision"],
+            "recall": weakest_recall["metrics"]["recall"],
+            "f1": weakest_recall["metrics"]["f1"],
+        },
+    }
+
+
+def generate_precision_plots(report: dict[str, object], reports_dir: Path) -> dict[str, str]:
+    grouped_metrics = list(report["model"]["group_metrics"]["test_by_target"])
+    precision_bar_path = reports_dir / "sql_activity_pair_precision_by_target.png"
+    precision_scatter_path = reports_dir / "sql_activity_pair_precision_recall.png"
+
+    target_names = [str(item["group_name"]) for item in grouped_metrics]
+    precisions = [float(item["metrics"]["precision"]) for item in grouped_metrics]
+    recalls = [float(item["metrics"]["recall"]) for item in grouped_metrics]
+    sample_counts = [int(item["sample_count"]) for item in grouped_metrics]
+
+    figure, axis = plt.subplots(figsize=(10, 5.5))
+    positions = list(range(len(target_names)))
+    width = 0.35
+    axis.bar(
+        [position - width / 2 for position in positions],
+        precisions,
+        width=width,
+        color="#1f77b4",
+        label="Precision",
+    )
+    axis.bar(
+        [position + width / 2 for position in positions],
+        recalls,
+        width=width,
+        color="#ff7f0e",
+        label="Recall",
+    )
+    axis.set_ylim(0.0, 1.0)
+    axis.set_ylabel("Score")
+    axis.set_title("Held-Out Test Precision vs Recall by Target")
+    axis.set_xticks(positions)
+    axis.set_xticklabels(target_names, rotation=15, ha="right")
+    axis.grid(axis="y", linestyle="--", alpha=0.3)
+    axis.legend(frameon=False)
+    for position, sample_count, precision in zip(positions, sample_counts, precisions, strict=True):
+        axis.text(
+            position - width / 2,
+            min(precision + 0.03, 0.98),
+            f"n={sample_count}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color="#444444",
+        )
+    figure.tight_layout()
+    figure.savefig(precision_bar_path, dpi=220, bbox_inches="tight")
+    plt.close(figure)
+
+    figure, axis = plt.subplots(figsize=(7.5, 6.5))
+    bubble_sizes = [max(sample_count * 1.5, 160) for sample_count in sample_counts]
+    palette = ["#0f766e", "#2563eb", "#d97706", "#dc2626"]
+    axis.scatter(
+        recalls,
+        precisions,
+        s=bubble_sizes,
+        c=palette[: len(grouped_metrics)],
+        alpha=0.78,
+        edgecolors="white",
+        linewidths=1.4,
+    )
+    axis.set_xlim(0.0, 1.0)
+    axis.set_ylim(0.0, 1.0)
+    axis.set_xlabel("Recall")
+    axis.set_ylabel("Precision")
+    axis.set_title("Precision-Focused Target Profile")
+    axis.grid(linestyle="--", alpha=0.3)
+    axis.axhline(
+        float(report["model"]["metrics"]["test"]["precision"]),
+        color="#111827",
+        linestyle=":",
+        linewidth=1.2,
+    )
+    axis.axvline(
+        float(report["model"]["metrics"]["test"]["recall"]),
+        color="#111827",
+        linestyle=":",
+        linewidth=1.2,
+    )
+    for recall, precision, label in zip(recalls, precisions, target_names, strict=True):
+        axis.text(recall + 0.015, precision + 0.015, label, fontsize=9, color="#111827")
+    figure.tight_layout()
+    figure.savefig(precision_scatter_path, dpi=220, bbox_inches="tight")
+    plt.close(figure)
+
+    return {
+        "precision_by_target": precision_bar_path.name,
+        "precision_recall_profile": precision_scatter_path.name,
+    }
+
+
 def load_rows(path: Path) -> list[dict[str, object]]:
     with path.open() as handle:
         reader = csv.DictReader(handle)
@@ -663,7 +789,7 @@ def build_report(export_path: Path) -> dict[str, object]:
         float(probability) for probability in model.predict_proba(test_features)[:, 1]
     ]
     selected_threshold = float(selected["threshold"])
-    return {
+    report = {
         "configuration": {
             "export_path": str(export_path),
             "label_threshold": DEFAULT_THRESHOLD,
@@ -750,6 +876,8 @@ def build_report(export_path: Path) -> dict[str, object]:
             )
         ],
     }
+    report["precision_priority_summary"] = summarize_precision_priority(report)
+    return report
 
 
 def render_markdown(report: dict[str, object]) -> str:
@@ -774,6 +902,12 @@ def render_markdown(report: dict[str, object]) -> str:
             "- Label balance: "
             f"similar={report['dataset']['label_balance']['similar']}, "
             f"dissimilar={report['dataset']['label_balance']['dissimilar']}"
+        ),
+        (
+            "- Precision-focused highlight: "
+            f"{report['precision_priority_summary']['best_precision_target']['target_name']} "
+            f"has the strongest test precision at "
+            f"{report['precision_priority_summary']['best_precision_target']['precision']}"
         ),
         "",
         "## Validation Selection",
@@ -831,6 +965,31 @@ def render_markdown(report: dict[str, object]) -> str:
     lines.extend(
         [
             "",
+            "## Precision View",
+            "",
+            (
+                "- Best precision target: "
+                f"{report['precision_priority_summary']['best_precision_target']['target_name']} "
+                f"(precision={report['precision_priority_summary']['best_precision_target']['precision']}, "
+                f"recall={report['precision_priority_summary']['best_precision_target']['recall']})"
+            ),
+            (
+                "- Lowest recall target: "
+                f"{report['precision_priority_summary']['lowest_recall_target']['target_name']} "
+                f"(precision={report['precision_priority_summary']['lowest_recall_target']['precision']}, "
+                f"recall={report['precision_priority_summary']['lowest_recall_target']['recall']})"
+            ),
+            "",
+            "## Plots",
+            "",
+            f"![Precision by target]({report['plots']['precision_by_target']})",
+            "",
+            f"![Precision recall profile]({report['plots']['precision_recall_profile']})",
+        ]
+    )
+    lines.extend(
+        [
+            "",
             "## Test Predictions",
             "",
             "| pair_id | target | type | similarity_score | activity_delta | actual_label | probability | predicted_label |",
@@ -851,6 +1010,7 @@ def write_report(
     report: dict[str, object], reports_dir: Path = DEFAULT_REPORTS_DIR
 ) -> tuple[Path, Path]:
     reports_dir.mkdir(parents=True, exist_ok=True)
+    report["plots"] = generate_precision_plots(report, reports_dir)
     json_path = reports_dir / "sql_activity_pair_model.json"
     markdown_path = reports_dir / "sql_activity_pair_model.md"
     json_path.write_text(json.dumps(report, indent=2))
