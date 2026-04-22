@@ -8,6 +8,5 @@ dist/
 build/
 *.egg-info/
 .env
-.codex
 data/chembl/
 data/chembl.db
