@@ -89,6 +89,12 @@ The generated precision-first visual outputs can also be found here:
 - `exploration/reports/sql_activity_pair_precision_by_target.png`
 - `exploration/reports/sql_activity_pair_precision_recall.png`
 
+The larger ChEMBL export gives a more useful AUROC view because its test split is much larger:
+
+- `exploration/reports/chembl_baseline_models.md`
+- `exploration/reports/chembl_linear_model_auroc.png`
+- `exploration/reports/chembl_logistic_model_auroc.png`
+
 
 
 ## Reproducibility
