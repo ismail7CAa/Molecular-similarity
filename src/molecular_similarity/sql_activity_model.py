@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -388,11 +389,19 @@ def generate_precision_plots(report: dict[str, object], reports_dir: Path) -> di
     precision_scatter_path = reports_dir / "sql_activity_pair_precision_recall.png"
 
     target_names = [str(item["group_name"]) for item in grouped_metrics]
+    axis_target_labels = [
+        "\n".join(textwrap.wrap(target_name, width=24, max_lines=2, placeholder="..."))
+        for target_name in target_names
+    ]
+    point_target_labels = [
+        "\n".join(textwrap.wrap(target_name, width=20, max_lines=2, placeholder="..."))
+        for target_name in target_names
+    ]
     precisions = [float(item["metrics"]["precision"]) for item in grouped_metrics]
     recalls = [float(item["metrics"]["recall"]) for item in grouped_metrics]
     sample_counts = [int(item["sample_count"]) for item in grouped_metrics]
 
-    figure, axis = plt.subplots(figsize=(10, 5.5))
+    figure, axis = plt.subplots(figsize=(9.5, 5.8))
     positions = list(range(len(target_names)))
     width = 0.35
     axis.bar(
@@ -413,7 +422,7 @@ def generate_precision_plots(report: dict[str, object], reports_dir: Path) -> di
     axis.set_ylabel("Score")
     axis.set_title("Held-Out Test Precision vs Recall by Target")
     axis.set_xticks(positions)
-    axis.set_xticklabels(target_names, rotation=15, ha="right")
+    axis.set_xticklabels(axis_target_labels, rotation=0, ha="center", fontsize=7)
     axis.grid(axis="y", linestyle="--", alpha=0.3)
     axis.legend(frameon=False)
     for position, sample_count, precision in zip(positions, sample_counts, precisions, strict=True):
@@ -423,14 +432,14 @@ def generate_precision_plots(report: dict[str, object], reports_dir: Path) -> di
             f"n={sample_count}",
             ha="center",
             va="bottom",
-            fontsize=9,
+            fontsize=7,
             color="#444444",
         )
     figure.tight_layout()
     figure.savefig(precision_bar_path, dpi=220, bbox_inches="tight")
     plt.close(figure)
 
-    figure, axis = plt.subplots(figsize=(7.5, 6.5))
+    figure, axis = plt.subplots(figsize=(7.5, 6.2))
     bubble_sizes = [max(sample_count * 1.5, 160) for sample_count in sample_counts]
     palette = ["#0f766e", "#2563eb", "#d97706", "#dc2626"]
     axis.scatter(
@@ -460,8 +469,15 @@ def generate_precision_plots(report: dict[str, object], reports_dir: Path) -> di
         linestyle=":",
         linewidth=1.2,
     )
-    for recall, precision, label in zip(recalls, precisions, target_names, strict=True):
-        axis.text(recall + 0.015, precision + 0.015, label, fontsize=9, color="#111827")
+    for recall, precision, label in zip(recalls, precisions, point_target_labels, strict=True):
+        axis.text(
+            recall + 0.012,
+            precision + 0.012,
+            label,
+            fontsize=7,
+            color="#111827",
+            linespacing=0.95,
+        )
     figure.tight_layout()
     figure.savefig(precision_scatter_path, dpi=220, bbox_inches="tight")
     plt.close(figure)
