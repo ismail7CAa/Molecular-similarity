@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "Molecular-similarity",
+			"path": "."
+		},
+		{
+			"name": "original_training_set",
+			"path": "../../../../Downloads/dataset_Similarity_Prediction/original_training_set"
+		},
+		{
+			"name": "new_dataset",
+			"path": "../../../../Downloads/dataset_Similarity_Prediction/new_dataset"
+		}
+	],
+	"settings": {}
+}
