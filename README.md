@@ -194,3 +194,14 @@ I also kept a starter GitHub Actions workflow in:
 `.github/workflows/ci-cd.yml`
 
 It runs CI on pushes and pull requests, and it can build distribution artifacts on tagged releases.
+
+## Project Information
+
+**Author:** Ismail Cherkaoui Aadil  
+
+**Institute:** University Hamburg 
+
+**Subject:** Modul. Data Science
+
+**Project:** Modul final Project
+
