@@ -1,0 +1,296 @@
+{
+  "$defs": {
+    "AlertPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "default_action": {
+          "default": "review",
+          "enum": [
+            "allow",
+            "monitor",
+            "review",
+            "block"
+          ],
+          "title": "Default Action",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "rationale": {
+          "default": "Structural alert requires regulatory review.",
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "severity": {
+          "default": "high",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "title": "AlertPolicy",
+      "type": "object"
+    },
+    "ComplianceRule": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "default": "review",
+          "enum": [
+            "allow",
+            "monitor",
+            "review",
+            "block"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "applies_to_jurisdictions": {
+          "items": {
+            "enum": [
+              "EMA",
+              "FDA",
+              "ICH",
+              "MHRA",
+              "PMDA",
+              "Health Canada"
+            ],
+            "type": "string"
+          },
+          "title": "Applies To Jurisdictions",
+          "type": "array"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "rule_id": {
+          "description": "Stable lowercase rule identifier.",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "description"
+      ],
+      "title": "ComplianceRule",
+      "type": "object"
+    },
+    "PhasePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_reference_min_phase": {
+          "default": 4.0,
+          "description": "Phase value treated as approved or marketed.",
+          "maximum": 4.0,
+          "minimum": 0.0,
+          "title": "Approved Reference Min Phase",
+          "type": "number"
+        },
+        "minimum_preferred_max_phase": {
+          "default": 2.0,
+          "description": "Preferred minimum ChEMBL max_phase for comparable compounds.",
+          "maximum": 4.0,
+          "minimum": 0.0,
+          "title": "Minimum Preferred Max Phase",
+          "type": "number"
+        },
+        "require_approved_reference": {
+          "default": false,
+          "description": "Require at least one approved or marketed reference compound.",
+          "title": "Require Approved Reference",
+          "type": "boolean"
+        }
+      },
+      "title": "PhasePolicy",
+      "type": "object"
+    },
+    "RegulatoryOutcomeThresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_likelihood_review": {
+          "default": 0.5,
+          "description": "Review threshold for model-derived approval or suitability outputs.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Approval Likelihood Review",
+          "type": "number"
+        },
+        "safety_risk_block": {
+          "default": 0.7,
+          "description": "Safety risk probability that blocks automatic progression.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Safety Risk Block",
+          "type": "number"
+        },
+        "safety_risk_review": {
+          "default": 0.35,
+          "description": "Safety risk probability that triggers RA review.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Safety Risk Review",
+          "type": "number"
+        }
+      },
+      "title": "RegulatoryOutcomeThresholds",
+      "type": "object"
+    },
+    "SimilarityThresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_match": {
+          "default": 0.65,
+          "description": "Minimum model probability to treat a molecule as similar enough for RA context.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Candidate Match",
+          "type": "number"
+        },
+        "high_confidence_match": {
+          "default": 0.85,
+          "description": "Probability above which the match is considered high confidence.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "High Confidence Match",
+          "type": "number"
+        },
+        "manual_review_below": {
+          "default": 0.55,
+          "description": "Below this probability, the engine avoids confident RA recommendations.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Manual Review Below",
+          "type": "number"
+        }
+      },
+      "title": "SimilarityThresholds",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Human-readable company personalization layer for regulatory decision intelligence. This config changes context, thresholds, and rule actions without retraining the model.",
+  "properties": {
+    "company_id": {
+      "description": "Stable lowercase company identifier used in config filenames.",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "title": "Company Id",
+      "type": "string"
+    },
+    "company_name": {
+      "minLength": 1,
+      "title": "Company Name",
+      "type": "string"
+    },
+    "effective_date": {
+      "format": "date",
+      "title": "Effective Date",
+      "type": "string"
+    },
+    "jurisdictions": {
+      "description": "Regulatory jurisdictions this config applies to.",
+      "items": {
+        "enum": [
+          "EMA",
+          "FDA",
+          "ICH",
+          "MHRA",
+          "PMDA",
+          "Health Canada"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Jurisdictions",
+      "type": "array"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "outcome_thresholds": {
+      "$ref": "#/$defs/RegulatoryOutcomeThresholds"
+    },
+    "owner": {
+      "description": "Responsible RA owner or team for this configuration.",
+      "minLength": 1,
+      "title": "Owner",
+      "type": "string"
+    },
+    "phase_policy": {
+      "$ref": "#/$defs/PhasePolicy"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/ComplianceRule"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "similarity_thresholds": {
+      "$ref": "#/$defs/SimilarityThresholds"
+    },
+    "structural_alerts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AlertPolicy"
+      },
+      "description": "Per-alert policy overrides keyed by alert column, for example alerts_nitrosamine or alerts_pains.",
+      "title": "Structural Alerts",
+      "type": "object"
+    },
+    "therapeutic_areas": {
+      "description": "Company-prioritized therapeutic areas for output context.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Therapeutic Areas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "company_id",
+    "company_name",
+    "effective_date",
+    "owner",
+    "jurisdictions"
+  ],
+  "title": "Company Compliance Rules Configuration",
+  "type": "object"
+}

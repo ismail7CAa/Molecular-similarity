@@ -4,6 +4,7 @@ I built this project as an end-to-end molecular similarity workflow that integra
 
 The project is now moving toward a regulatory-system decision-intelligence workflow: ChEMBL molecule records are enriched with regulatory-assessment labels such as clinical `max_phase`, therapeutic or indication area, first approval year, black-box-warning flags, route flags, and structural or target-derived safety alerts.
 RDKit SMARTS matching also adds structural alert flags for risk patterns such as nitrosamines, epoxides, reactive electrophiles, aromatic amines, nitro aromatics, polycyclic aromatics, and PAINS filters.
+The compliance layer is designed as a thin, JSON-configurable rules engine on top of the model: each company can maintain a human-readable config with jurisdictions, thresholds, alert actions, and rule toggles without retraining.
 
 I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
 
@@ -16,6 +17,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I built an ETL pipeline that imports a compact ChEMBL subset into SQLite, generates activity-derived molecule pairs, and exports a modeling-ready CSV.
 - I enriched ChEMBL molecules with regulatory-assessment features, including clinical phase, therapeutic area, indication count, approval metadata, route flags, and safety-alert labels.
 - I added RDKit SMARTS structural-alert flags as boolean columns for each molecule and propagated them into the pair-level modeling dataset.
+- I added a company compliance config schema and Pydantic validator so RA officers can personalize thresholds and rule actions through JSON.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
@@ -148,6 +150,11 @@ ETL and SQL export:
 
 - `python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv`
 - `python scripts/build_enriched_molecules.py --db ./data/chembl.db --output ./data/enriched_molecules.parquet`
+
+Compliance config validation:
+
+- `molecular-similarity-company-config configs/example_company_config.json`
+- `molecular-similarity-company-config --print-schema`
 
 Model training:
 

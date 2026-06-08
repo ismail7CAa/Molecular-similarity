@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "company_id": "example_pharma",
+  "company_name": "Example Pharma",
+  "effective_date": "2026-06-08",
+  "owner": "Regulatory Affairs",
+  "jurisdictions": ["FDA", "EMA", "ICH"],
+  "therapeutic_areas": ["Oncology", "Cardiology", "Metabolism and DDI safety"],
+  "similarity_thresholds": {
+    "candidate_match": 0.65,
+    "high_confidence_match": 0.85,
+    "manual_review_below": 0.55
+  },
+  "outcome_thresholds": {
+    "approval_likelihood_review": 0.5,
+    "safety_risk_review": 0.35,
+    "safety_risk_block": 0.7
+  },
+  "phase_policy": {
+    "minimum_preferred_max_phase": 2.0,
+    "require_approved_reference": false,
+    "approved_reference_min_phase": 4.0
+  },
+  "structural_alerts": {
+    "alerts_nitrosamine": {
+      "enabled": true,
+      "default_action": "block",
+      "severity": "critical",
+      "rationale": "Nitrosamine alert requires immediate ICH M7-oriented review."
+    },
+    "alerts_epoxide": {
+      "enabled": true,
+      "default_action": "review",
+      "severity": "high",
+      "rationale": "Epoxide alert may indicate reactive mutagenic liability."
+    },
+    "alerts_pains": {
+      "enabled": true,
+      "default_action": "monitor",
+      "severity": "medium",
+      "rationale": "PAINS flag should be visible but does not automatically block RA progression."
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "block_critical_alerts",
+      "description": "Block automatic progression when a critical structural alert is active.",
+      "enabled": true,
+      "action": "block",
+      "severity": "critical",
+      "applies_to_jurisdictions": ["FDA", "EMA", "ICH"]
+    },
+    {
+      "rule_id": "review_black_box_warning",
+      "description": "Require RA review when comparable compounds include black-box warning metadata.",
+      "enabled": true,
+      "action": "review",
+      "severity": "high",
+      "applies_to_jurisdictions": ["FDA"]
+    }
+  ],
+  "notes": "Example only. Company RA officers can adjust thresholds and actions without retraining."
+}
