@@ -10,6 +10,17 @@ CREATE TABLE IF NOT EXISTS molecules (
     inchi TEXT,
     molecular_weight REAL,
     heavy_atom_count INTEGER,
+    max_phase REAL,
+    therapeutic_area TEXT,
+    indication_count INTEGER DEFAULT 0,
+    first_approval INTEGER,
+    black_box_warning INTEGER DEFAULT 0,
+    molecule_type TEXT,
+    oral INTEGER DEFAULT 0,
+    parenteral INTEGER DEFAULT 0,
+    topical INTEGER DEFAULT 0,
+    regulatory_alert_count INTEGER DEFAULT 0,
+    regulatory_alerts TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

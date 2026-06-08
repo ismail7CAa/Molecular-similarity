@@ -2,6 +2,8 @@
 
 I built this project as an end-to-end molecular similarity workflow that integrates data exploration, ETL, SQL-based preprocessing, baseline modeling, and reproducible evaluation to support more precise and efficient decision-making in pharmaceutical regulatory contexts.
 
+The project is now moving toward a regulatory-system decision-intelligence workflow: ChEMBL molecule records are enriched with regulatory-assessment labels such as clinical `max_phase`, therapeutic or indication area, first approval year, black-box-warning flags, route flags, and structural or target-derived safety alerts.
+
 I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
 
 
@@ -11,6 +13,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 
 - I explored the original dataset and generated dataset summaries, pair indexes, and reproducible train/validation/test splits.
 - I built an ETL pipeline that imports a compact ChEMBL subset into SQLite, generates activity-derived molecule pairs, and exports a modeling-ready CSV.
+- I enriched ChEMBL molecules with regulatory-assessment features, including clinical phase, therapeutic area, indication count, approval metadata, route flags, and safety-alert labels.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
@@ -29,6 +32,7 @@ I used the following project flow:
 2. I used the ETL pipeline in:
    `scripts/etl_pipeline.py`
    to import compact ChEMBL data into `data/chembl.db`, generate activity-based pairs, and export `data/chembl_modeling.csv`.
+   The exported pair-level file now includes RA labels for both molecules in each pair, for example `max_phase_a`, `therapeutic_area_a`, `black_box_warning_a`, `regulatory_alerts_a`, and matching `_b` fields.
 3. I trained baseline and threshold models for smaller pair-level experiments.
 4. I trained the main SQL-backed activity-pair model from:
    `src/molecular_similarity/sql_activity_model.py`

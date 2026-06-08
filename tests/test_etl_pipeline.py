@@ -12,7 +12,14 @@ def _create_source_chembl_db(path: Path) -> None:
         CREATE TABLE molecule_dictionary (
             molregno INTEGER PRIMARY KEY,
             pref_name TEXT,
-            chembl_id TEXT NOT NULL
+            chembl_id TEXT NOT NULL,
+            max_phase REAL,
+            first_approval INTEGER,
+            black_box_warning INTEGER,
+            molecule_type TEXT,
+            oral INTEGER,
+            parenteral INTEGER,
+            topical INTEGER
         );
         CREATE TABLE compound_structures (
             molregno INTEGER PRIMARY KEY,
@@ -42,16 +49,40 @@ def _create_source_chembl_db(path: Path) -> None:
             standard_units TEXT,
             standard_type TEXT
         );
+        CREATE TABLE drug_indication (
+            molregno INTEGER,
+            mesh_heading TEXT
+        );
+        CREATE TABLE structural_alerts (
+            alert_id INTEGER PRIMARY KEY,
+            alert_name TEXT
+        );
+        CREATE TABLE compound_structural_alerts (
+            molregno INTEGER,
+            alert_id INTEGER
+        );
         """
     )
     conn.executemany(
         """
-        INSERT INTO molecule_dictionary (molregno, pref_name, chembl_id)
-        VALUES (?, ?, ?)
+        INSERT INTO molecule_dictionary
+        (
+            molregno,
+            pref_name,
+            chembl_id,
+            max_phase,
+            first_approval,
+            black_box_warning,
+            molecule_type,
+            oral,
+            parenteral,
+            topical
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            (1, "Example A", "CHEMBL1"),
-            (2, "Example B", "CHEMBL2"),
+            (1, "Example A", "CHEMBL1", 4, 2001, 1, "Small molecule", 1, 0, 0),
+            (2, "Example B", "CHEMBL2", 2, None, 0, "Small molecule", 0, 1, 0),
         ],
     )
     conn.executemany(
@@ -97,6 +128,38 @@ def _create_source_chembl_db(path: Path) -> None:
             (1001, 100, 2, 33.0, "nM", "Ki"),
         ],
     )
+    conn.executemany(
+        """
+        INSERT INTO drug_indication (molregno, mesh_heading)
+        VALUES (?, ?)
+        """,
+        [
+            (1, "Oncology"),
+            (1, "Rare Diseases"),
+            (2, "Cardiology"),
+        ],
+    )
+    conn.executemany(
+        """
+        INSERT INTO structural_alerts (alert_id, alert_name)
+        VALUES (?, ?)
+        """,
+        [
+            (1, "Reactive group"),
+            (2, "Cardiotoxicophore"),
+        ],
+    )
+    conn.executemany(
+        """
+        INSERT INTO compound_structural_alerts (molregno, alert_id)
+        VALUES (?, ?)
+        """,
+        [
+            (1, 1),
+            (1, 2),
+            (2, 2),
+        ],
+    )
     conn.commit()
     conn.close()
 
@@ -118,7 +181,25 @@ def test_import_chembl_sqlite_loads_molecules_and_activities(tmp_path: Path) -> 
         assert summary == {"molecules": 2, "activities": 2}
         molecule_rows = pipeline.conn.execute(
             """
-            SELECT molecule_id, chembl_id, compound_name, smiles, inchi, molecular_weight, heavy_atom_count
+            SELECT
+                molecule_id,
+                chembl_id,
+                compound_name,
+                smiles,
+                inchi,
+                molecular_weight,
+                heavy_atom_count,
+                max_phase,
+                therapeutic_area,
+                indication_count,
+                first_approval,
+                black_box_warning,
+                molecule_type,
+                oral,
+                parenteral,
+                topical,
+                regulatory_alert_count,
+                regulatory_alerts
             FROM molecules
             ORDER BY molecule_id
             """
@@ -135,8 +216,46 @@ def test_import_chembl_sqlite_loads_molecules_and_activities(tmp_path: Path) -> 
         pipeline.close()
 
     assert molecule_rows == [
-        (1, "CHEMBL1", "Example A", "CCO", "InChI=1S/exampleA", 46.07, 3),
-        (2, "CHEMBL2", "Example B", "CCN", "InChI=1S/exampleB", 45.08, 3),
+        (
+            1,
+            "CHEMBL1",
+            "Example A",
+            "CCO",
+            "InChI=1S/exampleA",
+            46.07,
+            3,
+            4.0,
+            "Oncology,Rare Diseases",
+            2,
+            2001,
+            1,
+            "Small molecule",
+            1,
+            0,
+            0,
+            2,
+            "Reactive group,Cardiotoxicophore",
+        ),
+        (
+            2,
+            "CHEMBL2",
+            "Example B",
+            "CCN",
+            "InChI=1S/exampleB",
+            45.08,
+            3,
+            2.0,
+            "Cardiology",
+            1,
+            None,
+            0,
+            "Small molecule",
+            0,
+            1,
+            0,
+            1,
+            "Cardiotoxicophore",
+        ),
     ]
     assert activity_rows == [
         (1000, 1, "B", 12.5, "nM", "IC50", "CHEMBLT1", "Target One", 100),
@@ -194,7 +313,15 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
         assert summary == {"molecules": 2, "activities": 2, "source_files": 1}
         molecule_rows = pipeline.conn.execute(
             """
-            SELECT molecule_id, chembl_id, compound_name, smiles
+            SELECT
+                molecule_id,
+                chembl_id,
+                compound_name,
+                smiles,
+                max_phase,
+                therapeutic_area,
+                regulatory_alert_count,
+                regulatory_alerts
             FROM molecules
             ORDER BY molecule_id
             """
@@ -211,8 +338,26 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
         pipeline.close()
 
     assert molecule_rows == [
-        (292759, "CHEMBL292759", "CHEMBL292759", "CCO"),
-        (542139, "CHEMBL542139", "Example Compound", "CCN"),
+        (
+            292759,
+            "CHEMBL292759",
+            "CHEMBL292759",
+            "CCO",
+            0.0,
+            "Metabolism and DDI safety",
+            1,
+            "CYP2D6 interaction liability",
+        ),
+        (
+            542139,
+            "CHEMBL542139",
+            "Example Compound",
+            "CCN",
+            0.0,
+            "Metabolism and DDI safety",
+            1,
+            "CYP2D6 interaction liability",
+        ),
     ]
     assert activity_rows == [
         (45777, 292759, "A", 11000.0, "nM", "IC50", "CHEMBL289", "Cytochrome P450 2D6", None),

@@ -29,6 +29,19 @@ OPTIONAL_ACTIVITY_COLUMNS = {
     "target_name": "TEXT",
     "source_assay_id": "INTEGER",
 }
+OPTIONAL_MOLECULE_COLUMNS = {
+    "max_phase": "REAL",
+    "therapeutic_area": "TEXT",
+    "indication_count": "INTEGER DEFAULT 0",
+    "first_approval": "INTEGER",
+    "black_box_warning": "INTEGER DEFAULT 0",
+    "molecule_type": "TEXT",
+    "oral": "INTEGER DEFAULT 0",
+    "parenteral": "INTEGER DEFAULT 0",
+    "topical": "INTEGER DEFAULT 0",
+    "regulatory_alert_count": "INTEGER DEFAULT 0",
+    "regulatory_alerts": "TEXT",
+}
 OPTIONAL_PAIR_COLUMNS = {
     "target_chembl_id": "TEXT",
     "target_name": "TEXT",
@@ -40,6 +53,16 @@ OPTIONAL_PAIR_COLUMNS = {
 }
 PAIRABLE_STANDARD_TYPES = {"Ki", "IC50", "EC50"}
 UNIT_TO_NM_SCALE = {"nM": 1.0, "uM": 1000.0}
+TARGET_REGULATORY_AREAS = {
+    "CHEMBL240": "Cardiac safety",
+    "CHEMBL1833": "Neuropsychiatry safety",
+    "CHEMBL289": "Metabolism and DDI safety",
+}
+TARGET_REGULATORY_ALERTS = {
+    "CHEMBL240": "hERG liability",
+    "CHEMBL1833": "5-HT2B agonism liability",
+    "CHEMBL289": "CYP2D6 interaction liability",
+}
 
 
 def _chembl_numeric_id(chembl_id: str) -> int:
@@ -74,10 +97,27 @@ class MolecularETLPipeline:
 
         print(f"Creating database schema from {SCHEMA_PATH}...")
         self.conn.executescript(SCHEMA_PATH.read_text())
+        self._ensure_molecule_columns()
         self._ensure_activity_columns()
         self._ensure_pair_columns()
         self.conn.commit()
         print("Schema created successfully")
+
+    def _ensure_molecule_columns(self) -> None:
+        """Backfill regulatory-assessment molecule columns in older local databases."""
+        if self.conn is None:
+            raise RuntimeError("Database connection is not initialized")
+
+        existing_columns = {
+            row[1]
+            for row in self.conn.execute("PRAGMA table_info(molecules)")
+        }
+        for column_name, column_type in OPTIONAL_MOLECULE_COLUMNS.items():
+            if column_name in existing_columns:
+                continue
+            self.conn.execute(
+                f"ALTER TABLE molecules ADD COLUMN {column_name} {column_type}"
+            )
 
     def _ensure_activity_columns(self) -> None:
         """Backfill newer activity columns in older local databases."""
@@ -156,6 +196,7 @@ class MolecularETLPipeline:
         if self.conn is None:
             raise RuntimeError("Database connection is not initialized")
 
+        self._ensure_molecule_columns()
         self._ensure_activity_columns()
         self._ensure_pair_columns()
         source_path = Path(source_db_path)
@@ -193,6 +234,7 @@ class MolecularETLPipeline:
         if self.conn is None:
             raise RuntimeError("Database connection is not initialized")
 
+        self._ensure_molecule_columns()
         self._ensure_activity_columns()
         self._ensure_pair_columns()
         dataset_path = Path(dataset_dir)
@@ -227,6 +269,29 @@ class MolecularETLPipeline:
                         "inchi": "",
                         "molecular_weight": None,
                         "heavy_atom_count": None,
+                        "max_phase": 0,
+                        "therapeutic_area": TARGET_REGULATORY_AREAS.get(
+                            str(activity.get("target_chembl_id") or ""),
+                            "Unassigned",
+                        ),
+                        "indication_count": 0,
+                        "first_approval": None,
+                        "black_box_warning": 0,
+                        "molecule_type": "",
+                        "oral": 0,
+                        "parenteral": 0,
+                        "topical": 0,
+                        "regulatory_alert_count": int(
+                            bool(
+                                TARGET_REGULATORY_ALERTS.get(
+                                    str(activity.get("target_chembl_id") or "")
+                                )
+                            )
+                        ),
+                        "regulatory_alerts": TARGET_REGULATORY_ALERTS.get(
+                            str(activity.get("target_chembl_id") or ""),
+                            "",
+                        ),
                     },
                 )
                 activities.append(
@@ -423,6 +488,98 @@ class MolecularETLPipeline:
         source_conn = sqlite3.connect(source_path)
         source_conn.row_factory = sqlite3.Row
         try:
+            table_columns = self._source_table_columns(source_conn)
+            md_columns = table_columns.get("molecule_dictionary", set())
+            has_drug_indication = "drug_indication" in table_columns
+            has_structural_alerts = {
+                "compound_structural_alerts",
+                "structural_alerts",
+            }.issubset(table_columns)
+
+            max_phase_expr = (
+                "md.max_phase AS max_phase"
+                if "max_phase" in md_columns
+                else "0 AS max_phase"
+            )
+            first_approval_expr = (
+                "md.first_approval AS first_approval"
+                if "first_approval" in md_columns
+                else "NULL AS first_approval"
+            )
+            black_box_expr = (
+                "COALESCE(md.black_box_warning, 0) AS black_box_warning"
+                if "black_box_warning" in md_columns
+                else "0 AS black_box_warning"
+            )
+            molecule_type_expr = (
+                "COALESCE(md.molecule_type, '') AS molecule_type"
+                if "molecule_type" in md_columns
+                else "'' AS molecule_type"
+            )
+            oral_expr = (
+                "COALESCE(md.oral, 0) AS oral"
+                if "oral" in md_columns
+                else "0 AS oral"
+            )
+            parenteral_expr = (
+                "COALESCE(md.parenteral, 0) AS parenteral"
+                if "parenteral" in md_columns
+                else "0 AS parenteral"
+            )
+            topical_expr = (
+                "COALESCE(md.topical, 0) AS topical"
+                if "topical" in md_columns
+                else "0 AS topical"
+            )
+            indication_select = ""
+            indication_join = ""
+            if has_drug_indication:
+                indication_select = """
+                    COALESCE(indication.indication_count, 0) AS indication_count,
+                    COALESCE(indication.therapeutic_area, 'Unassigned') AS therapeutic_area,
+                """
+                indication_join = """
+                    LEFT JOIN (
+                        SELECT
+                            molregno,
+                            COUNT(*) AS indication_count,
+                            GROUP_CONCAT(DISTINCT mesh_heading) AS therapeutic_area
+                        FROM drug_indication
+                        WHERE mesh_heading IS NOT NULL
+                        GROUP BY molregno
+                    ) AS indication ON indication.molregno = md.molregno
+                """
+            else:
+                indication_select = """
+                    0 AS indication_count,
+                    'Unassigned' AS therapeutic_area,
+                """
+
+            alert_select = ""
+            alert_join = ""
+            if has_structural_alerts:
+                alert_select = """
+                    COALESCE(alerts.regulatory_alert_count, 0) AS regulatory_alert_count,
+                    COALESCE(alerts.regulatory_alerts, '') AS regulatory_alerts
+                """
+                alert_join = """
+                    LEFT JOIN (
+                        SELECT
+                            csa.molregno,
+                            COUNT(*) AS regulatory_alert_count,
+                            GROUP_CONCAT(DISTINCT sa.alert_name) AS regulatory_alerts
+                        FROM compound_structural_alerts AS csa
+                        LEFT JOIN structural_alerts AS sa
+                            ON sa.alert_id = csa.alert_id
+                        GROUP BY csa.molregno
+                    ) AS alerts ON alerts.molregno = md.molregno
+                """
+            else:
+                alert_select = """
+                    0 AS regulatory_alert_count,
+                    '' AS regulatory_alerts
+                """
+
             query = """
                 SELECT
                     md.molregno AS molecule_id,
@@ -431,13 +588,36 @@ class MolecularETLPipeline:
                     COALESCE(cs.canonical_smiles, '') AS smiles,
                     COALESCE(cs.standard_inchi, '') AS inchi,
                     cp.full_mwt AS molecular_weight,
-                    cp.heavy_atoms AS heavy_atom_count
+                    cp.heavy_atoms AS heavy_atom_count,
+                    {max_phase_expr},
+                    {indication_select}
+                    {first_approval_expr},
+                    {black_box_expr},
+                    {molecule_type_expr},
+                    {oral_expr},
+                    {parenteral_expr},
+                    {topical_expr},
+                    {alert_select}
                 FROM molecule_dictionary md
                 JOIN compound_structures cs ON cs.molregno = md.molregno
                 LEFT JOIN compound_properties cp ON cp.molregno = md.molregno
+                {indication_join}
+                {alert_join}
                 WHERE cs.canonical_smiles IS NOT NULL
                 ORDER BY md.molregno
-            """
+            """.format(
+                max_phase_expr=max_phase_expr,
+                indication_select=indication_select,
+                first_approval_expr=first_approval_expr,
+                black_box_expr=black_box_expr,
+                molecule_type_expr=molecule_type_expr,
+                oral_expr=oral_expr,
+                parenteral_expr=parenteral_expr,
+                topical_expr=topical_expr,
+                alert_select=alert_select,
+                indication_join=indication_join,
+                alert_join=alert_join,
+            )
             parameters: tuple[object, ...] = ()
             if limit is not None:
                 query += " LIMIT ?"
@@ -450,6 +630,20 @@ class MolecularETLPipeline:
         finally:
             source_conn.close()
 
+    @staticmethod
+    def _source_table_columns(source_conn: sqlite3.Connection) -> dict[str, set[str]]:
+        table_rows = source_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+        table_names = [str(row[0]) for row in table_rows]
+        return {
+            table_name: {
+                str(column[1])
+                for column in source_conn.execute(f"PRAGMA table_info({table_name})")
+            }
+            for table_name in table_names
+        }
+
     def _upsert_molecules(self, molecules: list[dict[str, object]]) -> None:
         if self.conn is None or not molecules:
             return
@@ -457,8 +651,27 @@ class MolecularETLPipeline:
         self.conn.executemany(
             """
             INSERT OR REPLACE INTO molecules
-            (molecule_id, chembl_id, compound_name, smiles, inchi, molecular_weight, heavy_atom_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (
+                molecule_id,
+                chembl_id,
+                compound_name,
+                smiles,
+                inchi,
+                molecular_weight,
+                heavy_atom_count,
+                max_phase,
+                therapeutic_area,
+                indication_count,
+                first_approval,
+                black_box_warning,
+                molecule_type,
+                oral,
+                parenteral,
+                topical,
+                regulatory_alert_count,
+                regulatory_alerts
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -469,6 +682,17 @@ class MolecularETLPipeline:
                     row["inchi"],
                     row["molecular_weight"],
                     row["heavy_atom_count"],
+                    row.get("max_phase", 0),
+                    row.get("therapeutic_area") or "Unassigned",
+                    row.get("indication_count", 0),
+                    row.get("first_approval"),
+                    row.get("black_box_warning", 0),
+                    row.get("molecule_type") or "",
+                    row.get("oral", 0),
+                    row.get("parenteral", 0),
+                    row.get("topical", 0),
+                    row.get("regulatory_alert_count", 0),
+                    row.get("regulatory_alerts") or "",
                 )
                 for row in molecules
             ],
@@ -587,7 +811,29 @@ class MolecularETLPipeline:
                 ma.molecular_weight,
                 mb.molecular_weight,
                 ma.heavy_atom_count,
-                mb.heavy_atom_count
+                mb.heavy_atom_count,
+                ma.max_phase,
+                mb.max_phase,
+                ma.therapeutic_area,
+                mb.therapeutic_area,
+                ma.indication_count,
+                mb.indication_count,
+                ma.first_approval,
+                mb.first_approval,
+                ma.black_box_warning,
+                mb.black_box_warning,
+                ma.molecule_type,
+                mb.molecule_type,
+                ma.oral,
+                mb.oral,
+                ma.parenteral,
+                mb.parenteral,
+                ma.topical,
+                mb.topical,
+                ma.regulatory_alert_count,
+                mb.regulatory_alert_count,
+                ma.regulatory_alerts,
+                mb.regulatory_alerts
             FROM molecule_pairs
             AS mp
             LEFT JOIN molecules AS ma ON ma.molecule_id = mp.molecule_a_id
@@ -628,6 +874,34 @@ class MolecularETLPipeline:
             "heavy_atom_count_a",
             "heavy_atom_count_b",
             "heavy_atom_count_abs_delta",
+            "max_phase_a",
+            "max_phase_b",
+            "max_phase_abs_delta",
+            "therapeutic_area_a",
+            "therapeutic_area_b",
+            "same_therapeutic_area",
+            "indication_count_a",
+            "indication_count_b",
+            "indication_count_abs_delta",
+            "first_approval_a",
+            "first_approval_b",
+            "black_box_warning_a",
+            "black_box_warning_b",
+            "any_black_box_warning",
+            "molecule_type_a",
+            "molecule_type_b",
+            "oral_a",
+            "oral_b",
+            "parenteral_a",
+            "parenteral_b",
+            "topical_a",
+            "topical_b",
+            "regulatory_alert_count_a",
+            "regulatory_alert_count_b",
+            "regulatory_alert_count_abs_delta",
+            "regulatory_alerts_a",
+            "regulatory_alerts_b",
+            "any_regulatory_alert",
         ]
         with open(output_path, "w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -658,6 +932,28 @@ class MolecularETLPipeline:
                     molecular_weight_b,
                     heavy_atom_count_a,
                     heavy_atom_count_b,
+                    max_phase_a,
+                    max_phase_b,
+                    therapeutic_area_a,
+                    therapeutic_area_b,
+                    indication_count_a,
+                    indication_count_b,
+                    first_approval_a,
+                    first_approval_b,
+                    black_box_warning_a,
+                    black_box_warning_b,
+                    molecule_type_a,
+                    molecule_type_b,
+                    oral_a,
+                    oral_b,
+                    parenteral_a,
+                    parenteral_b,
+                    topical_a,
+                    topical_b,
+                    regulatory_alert_count_a,
+                    regulatory_alert_count_b,
+                    regulatory_alerts_a,
+                    regulatory_alerts_b,
                 ) = row
                 smiles_a = smiles_a or ""
                 smiles_b = smiles_b or ""
@@ -665,6 +961,24 @@ class MolecularETLPipeline:
                 weight_b = float(molecular_weight_b) if molecular_weight_b is not None else 0.0
                 heavy_a = int(heavy_atom_count_a) if heavy_atom_count_a is not None else 0
                 heavy_b = int(heavy_atom_count_b) if heavy_atom_count_b is not None else 0
+                phase_a = float(max_phase_a) if max_phase_a is not None else 0.0
+                phase_b = float(max_phase_b) if max_phase_b is not None else 0.0
+                area_a = therapeutic_area_a or "Unassigned"
+                area_b = therapeutic_area_b or "Unassigned"
+                indications_a = int(indication_count_a) if indication_count_a is not None else 0
+                indications_b = int(indication_count_b) if indication_count_b is not None else 0
+                black_box_a = int(bool(black_box_warning_a))
+                black_box_b = int(bool(black_box_warning_b))
+                alert_count_a = (
+                    int(regulatory_alert_count_a)
+                    if regulatory_alert_count_a is not None
+                    else 0
+                )
+                alert_count_b = (
+                    int(regulatory_alert_count_b)
+                    if regulatory_alert_count_b is not None
+                    else 0
+                )
                 activity_a = float(activity_value_a) if activity_value_a is not None else 0.0
                 activity_b = float(activity_value_b) if activity_value_b is not None else 0.0
                 writer.writerow(
@@ -700,6 +1014,34 @@ class MolecularETLPipeline:
                         "heavy_atom_count_a": heavy_a,
                         "heavy_atom_count_b": heavy_b,
                         "heavy_atom_count_abs_delta": abs(heavy_a - heavy_b),
+                        "max_phase_a": phase_a,
+                        "max_phase_b": phase_b,
+                        "max_phase_abs_delta": round(abs(phase_a - phase_b), 4),
+                        "therapeutic_area_a": area_a,
+                        "therapeutic_area_b": area_b,
+                        "same_therapeutic_area": int(area_a == area_b),
+                        "indication_count_a": indications_a,
+                        "indication_count_b": indications_b,
+                        "indication_count_abs_delta": abs(indications_a - indications_b),
+                        "first_approval_a": first_approval_a or "",
+                        "first_approval_b": first_approval_b or "",
+                        "black_box_warning_a": black_box_a,
+                        "black_box_warning_b": black_box_b,
+                        "any_black_box_warning": int(bool(black_box_a or black_box_b)),
+                        "molecule_type_a": molecule_type_a or "",
+                        "molecule_type_b": molecule_type_b or "",
+                        "oral_a": int(bool(oral_a)),
+                        "oral_b": int(bool(oral_b)),
+                        "parenteral_a": int(bool(parenteral_a)),
+                        "parenteral_b": int(bool(parenteral_b)),
+                        "topical_a": int(bool(topical_a)),
+                        "topical_b": int(bool(topical_b)),
+                        "regulatory_alert_count_a": alert_count_a,
+                        "regulatory_alert_count_b": alert_count_b,
+                        "regulatory_alert_count_abs_delta": abs(alert_count_a - alert_count_b),
+                        "regulatory_alerts_a": regulatory_alerts_a or "",
+                        "regulatory_alerts_b": regulatory_alerts_b or "",
+                        "any_regulatory_alert": int(bool(alert_count_a or alert_count_b)),
                     }
                 )
 
