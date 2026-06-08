@@ -35,10 +35,13 @@ I used the following project flow:
    `scripts/etl_pipeline.py`
    to import compact ChEMBL data into `data/chembl.db`, generate activity-based pairs, and export `data/chembl_modeling.csv`.
    The exported pair-level file now includes RA labels for both molecules in each pair, for example `max_phase_a`, `therapeutic_area_a`, `black_box_warning_a`, `regulatory_alerts_a`, and matching `_b` fields.
-3. I trained baseline and threshold models for smaller pair-level experiments.
-4. I trained the main SQL-backed activity-pair model from:
+3. I built a molecule-level inference lookup in:
+   `scripts/build_enriched_molecules.py`
+   to export `data/enriched_molecules.parquet` with Morgan/MACCS fingerprints, RA metadata, and structural alert flags.
+4. I trained baseline and threshold models for smaller pair-level experiments.
+5. I trained the main SQL-backed activity-pair model from:
    `src/molecular_similarity/sql_activity_model.py`
-5. I evaluated the model on held-out unseen data and generated:
+6. I evaluated the model on held-out unseen data and generated:
    - JSON reports
    - Markdown reports
    - precision-first plots
@@ -144,6 +147,7 @@ Data exploration:
 ETL and SQL export:
 
 - `python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv`
+- `python scripts/build_enriched_molecules.py --db ./data/chembl.db --output ./data/enriched_molecules.parquet`
 
 Model training:
 
