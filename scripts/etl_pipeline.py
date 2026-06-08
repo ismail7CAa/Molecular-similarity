@@ -15,6 +15,9 @@ import math
 import sqlite3
 from pathlib import Path
 
+from rdkit import Chem
+from rdkit.Chem.FilterCatalog import FilterCatalog, FilterCatalogParams
+
 
 DEFAULT_DB_PATH = "./data/chembl.db"
 DEFAULT_INDEX_PATH = "./exploration/reports/dataset_index.json"
@@ -41,6 +44,20 @@ OPTIONAL_MOLECULE_COLUMNS = {
     "topical": "INTEGER DEFAULT 0",
     "regulatory_alert_count": "INTEGER DEFAULT 0",
     "regulatory_alerts": "TEXT",
+    "alerts_nitrosamine": "INTEGER DEFAULT 0",
+    "alerts_epoxide": "INTEGER DEFAULT 0",
+    "alerts_aziridine": "INTEGER DEFAULT 0",
+    "alerts_alkyl_halide": "INTEGER DEFAULT 0",
+    "alerts_aldehyde": "INTEGER DEFAULT 0",
+    "alerts_hydrazine": "INTEGER DEFAULT 0",
+    "alerts_aromatic_amine": "INTEGER DEFAULT 0",
+    "alerts_michael_acceptor": "INTEGER DEFAULT 0",
+    "alerts_acyl_halide": "INTEGER DEFAULT 0",
+    "alerts_sulfonate_ester": "INTEGER DEFAULT 0",
+    "alerts_azo": "INTEGER DEFAULT 0",
+    "alerts_nitro_aromatic": "INTEGER DEFAULT 0",
+    "alerts_polycyclic_aromatic": "INTEGER DEFAULT 0",
+    "alerts_pains": "INTEGER DEFAULT 0",
 }
 OPTIONAL_PAIR_COLUMNS = {
     "target_chembl_id": "TEXT",
@@ -63,6 +80,30 @@ TARGET_REGULATORY_ALERTS = {
     "CHEMBL1833": "5-HT2B agonism liability",
     "CHEMBL289": "CYP2D6 interaction liability",
 }
+STRUCTURAL_ALERT_SMARTS = {
+    "alerts_nitrosamine": "[NX3;!R]([#6])([#6])[NX2]=O",
+    "alerts_epoxide": "C1OC1",
+    "alerts_aziridine": "C1NC1",
+    "alerts_alkyl_halide": "[CX4][Cl,Br,I]",
+    "alerts_aldehyde": "[CX3H1](=O)[#6]",
+    "alerts_hydrazine": "[NX3][NX3]",
+    "alerts_aromatic_amine": "[NX3;H2,H1;!$(NC=O)]a",
+    "alerts_michael_acceptor": "[CX3]=[CX3][CX3](=O)[#6,#7,#8]",
+    "alerts_acyl_halide": "[CX3](=O)[Cl,Br,I]",
+    "alerts_sulfonate_ester": "S(=O)(=O)(O[#6])[#6]",
+    "alerts_azo": "[#6]-N=N-[#6]",
+    "alerts_nitro_aromatic": "[$([NX3](=O)=O),$([NX3+](=O)[O-])]a",
+    "alerts_polycyclic_aromatic": "a12aaaaa1aaaa2",
+}
+STRUCTURAL_ALERT_COLUMNS = [
+    *STRUCTURAL_ALERT_SMARTS.keys(),
+    "alerts_pains",
+]
+COMPILED_STRUCTURAL_ALERTS = {
+    alert_name: Chem.MolFromSmarts(smarts)
+    for alert_name, smarts in STRUCTURAL_ALERT_SMARTS.items()
+}
+PAINS_CATALOG: FilterCatalog | None = None
 
 
 def _chembl_numeric_id(chembl_id: str) -> int:
@@ -70,6 +111,35 @@ def _chembl_numeric_id(chembl_id: str) -> int:
     if not normalized.startswith("CHEMBL"):
         raise ValueError(f"Unsupported ChEMBL identifier: {chembl_id}")
     return int(normalized.removeprefix("CHEMBL"))
+
+
+def _get_pains_catalog() -> FilterCatalog:
+    global PAINS_CATALOG
+    if PAINS_CATALOG is None:
+        params = FilterCatalogParams()
+        params.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS_A)
+        params.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS_B)
+        params.AddCatalog(FilterCatalogParams.FilterCatalogs.PAINS_C)
+        PAINS_CATALOG = FilterCatalog(params)
+    return PAINS_CATALOG
+
+
+def build_structural_alert_flags(smiles: str | None) -> dict[str, int]:
+    """Return boolean RDKit SMARTS/PAINS alert flags for a molecule."""
+    alert_flags = {column: 0 for column in STRUCTURAL_ALERT_COLUMNS}
+    if not smiles:
+        return alert_flags
+
+    molecule = Chem.MolFromSmiles(str(smiles))
+    if molecule is None:
+        return alert_flags
+
+    for alert_name, pattern in COMPILED_STRUCTURAL_ALERTS.items():
+        if pattern is not None and molecule.HasSubstructMatch(pattern):
+            alert_flags[alert_name] = 1
+
+    alert_flags["alerts_pains"] = int(_get_pains_catalog().HasMatch(molecule))
+    return alert_flags
 
 
 class MolecularETLPipeline:
@@ -669,9 +739,26 @@ class MolecularETLPipeline:
                 parenteral,
                 topical,
                 regulatory_alert_count,
-                regulatory_alerts
+                regulatory_alerts,
+                alerts_nitrosamine,
+                alerts_epoxide,
+                alerts_aziridine,
+                alerts_alkyl_halide,
+                alerts_aldehyde,
+                alerts_hydrazine,
+                alerts_aromatic_amine,
+                alerts_michael_acceptor,
+                alerts_acyl_halide,
+                alerts_sulfonate_ester,
+                alerts_azo,
+                alerts_nitro_aromatic,
+                alerts_polycyclic_aromatic,
+                alerts_pains
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
             """,
             [
                 (
@@ -693,6 +780,12 @@ class MolecularETLPipeline:
                     row.get("topical", 0),
                     row.get("regulatory_alert_count", 0),
                     row.get("regulatory_alerts") or "",
+                    *(
+                        build_structural_alert_flags(str(row.get("smiles") or ""))[
+                            alert_column
+                        ]
+                        for alert_column in STRUCTURAL_ALERT_COLUMNS
+                    ),
                 )
                 for row in molecules
             ],
@@ -833,7 +926,35 @@ class MolecularETLPipeline:
                 ma.regulatory_alert_count,
                 mb.regulatory_alert_count,
                 ma.regulatory_alerts,
-                mb.regulatory_alerts
+                mb.regulatory_alerts,
+                ma.alerts_nitrosamine,
+                mb.alerts_nitrosamine,
+                ma.alerts_epoxide,
+                mb.alerts_epoxide,
+                ma.alerts_aziridine,
+                mb.alerts_aziridine,
+                ma.alerts_alkyl_halide,
+                mb.alerts_alkyl_halide,
+                ma.alerts_aldehyde,
+                mb.alerts_aldehyde,
+                ma.alerts_hydrazine,
+                mb.alerts_hydrazine,
+                ma.alerts_aromatic_amine,
+                mb.alerts_aromatic_amine,
+                ma.alerts_michael_acceptor,
+                mb.alerts_michael_acceptor,
+                ma.alerts_acyl_halide,
+                mb.alerts_acyl_halide,
+                ma.alerts_sulfonate_ester,
+                mb.alerts_sulfonate_ester,
+                ma.alerts_azo,
+                mb.alerts_azo,
+                ma.alerts_nitro_aromatic,
+                mb.alerts_nitro_aromatic,
+                ma.alerts_polycyclic_aromatic,
+                mb.alerts_polycyclic_aromatic,
+                ma.alerts_pains,
+                mb.alerts_pains
             FROM molecule_pairs
             AS mp
             LEFT JOIN molecules AS ma ON ma.molecule_id = mp.molecule_a_id
@@ -902,6 +1023,15 @@ class MolecularETLPipeline:
             "regulatory_alerts_a",
             "regulatory_alerts_b",
             "any_regulatory_alert",
+            *[
+                column_name
+                for alert_column in STRUCTURAL_ALERT_COLUMNS
+                for column_name in (
+                    f"{alert_column}_a",
+                    f"{alert_column}_b",
+                    f"any_{alert_column}",
+                )
+            ],
         ]
         with open(output_path, "w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -954,6 +1084,7 @@ class MolecularETLPipeline:
                     regulatory_alert_count_b,
                     regulatory_alerts_a,
                     regulatory_alerts_b,
+                    *structural_alert_values,
                 ) = row
                 smiles_a = smiles_a or ""
                 smiles_b = smiles_b or ""
@@ -981,6 +1112,15 @@ class MolecularETLPipeline:
                 )
                 activity_a = float(activity_value_a) if activity_value_a is not None else 0.0
                 activity_b = float(activity_value_b) if activity_value_b is not None else 0.0
+                structural_alert_output = {}
+                for index, alert_column in enumerate(STRUCTURAL_ALERT_COLUMNS):
+                    alert_a = int(bool(structural_alert_values[index * 2]))
+                    alert_b = int(bool(structural_alert_values[index * 2 + 1]))
+                    structural_alert_output[f"{alert_column}_a"] = alert_a
+                    structural_alert_output[f"{alert_column}_b"] = alert_b
+                    structural_alert_output[f"any_{alert_column}"] = int(
+                        bool(alert_a or alert_b)
+                    )
                 writer.writerow(
                     {
                         "pair_id": pair_id,
@@ -1042,6 +1182,7 @@ class MolecularETLPipeline:
                         "regulatory_alerts_a": regulatory_alerts_a or "",
                         "regulatory_alerts_b": regulatory_alerts_b or "",
                         "any_regulatory_alert": int(bool(alert_count_a or alert_count_b)),
+                        **structural_alert_output,
                     }
                 )
 

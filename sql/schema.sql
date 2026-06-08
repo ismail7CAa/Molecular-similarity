@@ -21,6 +21,20 @@ CREATE TABLE IF NOT EXISTS molecules (
     topical INTEGER DEFAULT 0,
     regulatory_alert_count INTEGER DEFAULT 0,
     regulatory_alerts TEXT,
+    alerts_nitrosamine INTEGER DEFAULT 0,
+    alerts_epoxide INTEGER DEFAULT 0,
+    alerts_aziridine INTEGER DEFAULT 0,
+    alerts_alkyl_halide INTEGER DEFAULT 0,
+    alerts_aldehyde INTEGER DEFAULT 0,
+    alerts_hydrazine INTEGER DEFAULT 0,
+    alerts_aromatic_amine INTEGER DEFAULT 0,
+    alerts_michael_acceptor INTEGER DEFAULT 0,
+    alerts_acyl_halide INTEGER DEFAULT 0,
+    alerts_sulfonate_ester INTEGER DEFAULT 0,
+    alerts_azo INTEGER DEFAULT 0,
+    alerts_nitro_aromatic INTEGER DEFAULT 0,
+    alerts_polycyclic_aromatic INTEGER DEFAULT 0,
+    alerts_pains INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

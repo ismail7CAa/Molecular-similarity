@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 import json
 
-from scripts.etl_pipeline import MolecularETLPipeline
+from scripts.etl_pipeline import MolecularETLPipeline, build_structural_alert_flags
 
 
 def _create_source_chembl_db(path: Path) -> None:
@@ -263,6 +263,18 @@ def test_import_chembl_sqlite_loads_molecules_and_activities(tmp_path: Path) -> 
     ]
 
 
+def test_build_structural_alert_flags_matches_smarts_and_pains() -> None:
+    nitrosamine_flags = build_structural_alert_flags("CN(C)N=O")
+    epoxide_flags = build_structural_alert_flags("C1OC1")
+    pains_flags = build_structural_alert_flags("O=C1C=CC(=O)C=C1")
+    invalid_flags = build_structural_alert_flags("not-a-smiles")
+
+    assert nitrosamine_flags["alerts_nitrosamine"] == 1
+    assert epoxide_flags["alerts_epoxide"] == 1
+    assert pains_flags["alerts_pains"] == 1
+    assert all(value == 0 for value in invalid_flags.values())
+
+
 def test_import_compact_chembl_json_loads_molecules_and_activities(
     tmp_path: Path,
 ) -> None:
@@ -277,7 +289,7 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
                         "molecule_chembl_id": "CHEMBL292759",
                         "molecule_pref_name": None,
                         "parent_molecule_chembl_id": "CHEMBL292759",
-                        "canonical_smiles": "CCO",
+                        "canonical_smiles": "CN(C)N=O",
                         "standard_value": "11000.0",
                         "standard_units": "nM",
                         "standard_type": "IC50",
@@ -290,7 +302,7 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
                         "molecule_chembl_id": "CHEMBL542139",
                         "molecule_pref_name": "Example Compound",
                         "parent_molecule_chembl_id": "CHEMBL431298",
-                        "canonical_smiles": "CCN",
+                        "canonical_smiles": "C1OC1",
                         "standard_value": "32000.0",
                         "standard_units": "nM",
                         "standard_type": "IC50",
@@ -321,7 +333,9 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
                 max_phase,
                 therapeutic_area,
                 regulatory_alert_count,
-                regulatory_alerts
+                regulatory_alerts,
+                alerts_nitrosamine,
+                alerts_epoxide
             FROM molecules
             ORDER BY molecule_id
             """
@@ -342,21 +356,25 @@ def test_import_compact_chembl_json_loads_molecules_and_activities(
             292759,
             "CHEMBL292759",
             "CHEMBL292759",
-            "CCO",
+            "CN(C)N=O",
             0.0,
             "Metabolism and DDI safety",
             1,
             "CYP2D6 interaction liability",
+            1,
+            0,
         ),
         (
             542139,
             "CHEMBL542139",
             "Example Compound",
-            "CCN",
+            "C1OC1",
             0.0,
             "Metabolism and DDI safety",
             1,
             "CYP2D6 interaction liability",
+            0,
+            1,
         ),
     ]
     assert activity_rows == [
