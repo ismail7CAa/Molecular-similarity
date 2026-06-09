@@ -1,75 +1,193 @@
-# Molecular-similarity
+# Regulatory Decision Intelligence for Molecular Similarity
 
-I built this project as an end-to-end molecular similarity workflow that integrates data exploration, ETL, SQL-based preprocessing, baseline modeling, and reproducible evaluation to support more precise and efficient decision-making in pharmaceutical regulatory contexts.
+## Problem ?
 
-The project is now moving toward a regulatory-system decision-intelligence workflow: ChEMBL molecule records are enriched with regulatory-assessment labels such as clinical `max_phase`, therapeutic or indication area, first approval year, black-box-warning flags, route flags, and structural or target-derived safety alerts.
-RDKit SMARTS matching also adds structural alert flags for risk patterns such as nitrosamines, epoxides, reactive electrophiles, aromatic amines, nitro aromatics, polycyclic aromatics, and PAINS filters.
-The compliance layer is designed as a thin, JSON-configurable rules engine on top of the model: each company can maintain a human-readable config with jurisdictions, thresholds, alert actions, and rule toggles without retraining.
+Regulatory Affairs teams do not only need a model score. They need to understand why a compound may be acceptable, risky, similar to an approved precedent, or blocked by a safety rule.
 
-I started with raw pair-level molecule data, added an ETL pipeline for structured ChEMBL imports, trained several baseline models, and then pushed the project toward a more reproducible SQL-backed workflow with package CLIs, tests, reports, and Docker support.
+In many pharma workflows, the useful information is scattered across public data, internal compound libraries, past company decisions, structural alert rules, and manual RA judgement. A binary prediction is not enough for GxP-style work because every decision must be explainable, traceable, and auditable.
 
+## Why this project?
 
-## What I Built
+This project turns a molecular similarity workflow into a regulatory decision-intelligence system.
 
-I used this repository to cover the whole path from raw data to model evaluation:
+The idea is simple: keep the ML model focused on molecular similarity, then add deterministic regulatory layers around it. That gives RA officers a structured answer they can read, adjust, audit, and defend without retraining the model for every company.
 
-- I explored the original dataset and generated dataset summaries, pair indexes, and reproducible train/validation/test splits.
-- I built an ETL pipeline that imports a compact ChEMBL subset into SQLite, generates activity-derived molecule pairs, and exports a modeling-ready CSV.
-- I enriched ChEMBL molecules with regulatory-assessment features, including clinical phase, therapeutic area, indication count, approval metadata, route flags, and safety-alert labels.
-- I added RDKit SMARTS structural-alert flags as boolean columns for each molecule and propagated them into the pair-level modeling dataset.
-- I added a company compliance config schema and Pydantic validator so RA officers can personalize thresholds and rule actions through JSON.
-- I added a deterministic RA decision router that combines model score, alert flags, and company config into a structured compliance decision.
-- I added a precedent matcher that looks up the most relevant approved analog from the enriched molecule dataset for RA context.
-- I added a Pydantic RA response schema so API outputs become full, auditable decision objects instead of binary score-only responses.
-- I added FastAPI audit middleware that appends every prediction request/response context to company-specific JSONL logs before returning.
-- I added a company onboarding endpoint that accepts SDF or SMILES CSV libraries, standardizes compounds with RDKit, generates fingerprints, and stores company-scoped FAISS indexes.
-- I added a company RA history upload endpoint that stores past decisions as company-scoped Parquet for inference-time precedent context.
-- I added shared tenant namespace handling so each company ID maps to isolated index, history, and audit storage.
-- I added an end-to-end mock-company onboarding test with 20 compounds, 10 RA decisions, FAISS indexing, RA routing, and validated response justification.
-- I built three modeling paths:
-  - a linear/logistic baseline
-  - a threshold-based similarity classifier for the small prepared dataset
-  - a SQL-backed activity-pair model, which is the strongest current workflow
-- I packaged the model code under `src/molecular_similarity/` and kept `scripts/` as thin wrappers so the same workflows can be run from Python scripts or installed CLIs.
-- I added tests, Markdown/JSON reports, and precision-focused visual outputs so the results are easy to inspect.
+## What we did ?
 
-## How The Pipeline Works
+I built the project step by step:
 
-I used the following project flow:
+- Imported and modeled ChEMBL-derived molecule activity data.
+- Enriched compounds with regulatory-assessment metadata such as `max_phase`, first approval year, therapeutic area, black-box warning, and route flags.
+- Added RDKit SMARTS structural alert flags, including nitrosamine, epoxide, aromatic amine, nitro aromatic, PAINS, and other risk patterns.
+- Built an enriched molecule lookup file for inference: `data/enriched_molecules.parquet`.
+- Added a JSON-configurable company compliance layer validated by Pydantic.
+- Added a deterministic RA decision router where alert escalation overrides model score.
+- Added a precedent matcher that finds the most relevant approved analog.
+- Replaced score-only output with a full RA-readable response schema.
+- Added append-only audit logging for prediction calls.
+- Added company onboarding endpoints for internal libraries and past RA decisions.
+- Added multi-tenant isolation so each company has separate indexes, history, configs, and audit logs.
+- Added Docker Compose mounts so company data persists across container restarts.
+- Added an end-to-end mock company test with 20 compounds and 10 RA decisions.
 
-1. I explored the input data with:
-   `scripts/explore_dataset.py`
-   `scripts/build_dataset_index.py`
-   `scripts/prepare_dataset.py`
-2. I used the ETL pipeline in:
-   `scripts/etl_pipeline.py`
-   to import compact ChEMBL data into `data/chembl.db`, generate activity-based pairs, and export `data/chembl_modeling.csv`.
-   The exported pair-level file now includes RA labels for both molecules in each pair, for example `max_phase_a`, `therapeutic_area_a`, `black_box_warning_a`, `regulatory_alerts_a`, and matching `_b` fields.
-3. I built a molecule-level inference lookup in:
-   `scripts/build_enriched_molecules.py`
-   to export `data/enriched_molecules.parquet` with Morgan/MACCS fingerprints, RA metadata, and structural alert flags.
-4. I trained baseline and threshold models for smaller pair-level experiments.
-5. I trained the main SQL-backed activity-pair model from:
-   `src/molecular_similarity/sql_activity_model.py`
-6. I evaluated the model on held-out unseen data and generated:
-   - JSON reports
-   - Markdown reports
-   - precision-first plots
+## The solution
 
-And here is the pipeline workflow generator in:
-`scripts/generate_pipeline_figure.py`
+The final system produces an auditable regulatory decision object, not just a probability.
 
-`exploration/reports/project_pipeline.png`
+Example output shape:
 
-The figure shows the exact pipeline from raw inputs to ETL, SQL storage, model training, precision evaluation, and reproducibility tooling.
+```json
+{
+  "company_id": "mock_company",
+  "decision": "block",
+  "reason": "Alert escalation override: alerts_nitrosamine triggered critical block.",
+  "ra_justification": {
+    "summary": "Alert escalation override applied.",
+    "score_rationale": "The model score was high, but deterministic alert rules apply.",
+    "alert_rationale": "Nitrosamine alert is configured as critical block.",
+    "precedent_rationale": "An approved analog was attached as context.",
+    "history_rationale": "Company RA history was available for precedent context."
+  },
+  "score": {
+    "model_score": 0.93,
+    "confidence_band": "high"
+  },
+  "top_analog": {
+    "chembl_id": "MC-001",
+    "name": "Mock Compound 1",
+    "max_phase": 4.0,
+    "approval_year": 2026
+  }
+}
+```
 
-![Project pipeline](exploration/reports/project_pipeline.png)
+The ML model still gives the similarity signal. The compliance layer turns that signal into a regulatory answer.
 
-## Main Results
+## Simple System Diagram
 
-The strongest current result is the SQL-backed activity-pair model trained on the exported ChEMBL-based dataset.
+```text
+             Public ChEMBL data
+                     |
+                     v
+        ETL + regulatory enrichment
+        phase, approval, alerts, labels
+                     |
+                     v
+          Enriched molecule lookup
+        data/enriched_molecules.parquet
+                     |
+                     v
+User compound -> similarity model -> top similar compounds
+                     |
+                     v
+             Precedent matcher
+        approved analog + RA metadata
+                     |
+                     v
+        Company compliance config
+     thresholds, jurisdictions, alert actions
+                     |
+                     v
+           RA decision router
+       deterministic rules, no retraining
+                     |
+                     v
+       RA-readable decision response
+   decision, reason, justification, audit trail
+                     |
+                     v
+           Append-only audit log
+        audit/{company_id}/log.jsonl
+```
 
-Held-out SQL test metrics:
+Company onboarding adds private context:
+
+```text
+Company library upload         Company RA history upload
+SDF or SMILES CSV              past decisions CSV
+        |                              |
+        v                              v
+RDKit standardization           Parquet history file
+Morgan fingerprints             history/{company_id}/ra_decisions.parquet
+        |
+        v
+FAISS index
+indexes/{company_id}/faiss.index
+```
+
+## Main Components
+
+### 1. ChEMBL ETL and regulatory enrichment
+
+The ETL pipeline imports compact ChEMBL activity data, stores it in SQLite, creates activity-derived molecule pairs, and exports modeling data.
+
+Important outputs:
+
+- `data/chembl.db`
+- `data/chembl_modeling.csv`
+
+Important file:
+
+- `scripts/etl_pipeline.py`
+
+Regulatory metadata added to molecules includes:
+
+- `max_phase`
+- `first_approval`
+- `therapeutic_area`
+- `indication_count`
+- `black_box_warning`
+- `molecule_type`
+- route flags: `oral`, `parenteral`, `topical`
+- target-derived safety context
+
+### 2. RDKit structural alert flags
+
+Each molecule is checked with a curated SMARTS alert library.
+
+Examples:
+
+- `alerts_nitrosamine`
+- `alerts_epoxide`
+- `alerts_aziridine`
+- `alerts_alkyl_halide`
+- `alerts_aldehyde`
+- `alerts_hydrazine`
+- `alerts_aromatic_amine`
+- `alerts_michael_acceptor`
+- `alerts_nitro_aromatic`
+- `alerts_polycyclic_aromatic`
+- `alerts_pains`
+
+These flags become deterministic regulatory risk signals.
+
+### 3. Enriched molecule lookup
+
+The project builds a molecule-level inference lookup:
+
+- `data/enriched_molecules.parquet`
+
+It includes:
+
+- Morgan fingerprints
+- MACCS fingerprints
+- RA metadata
+- alert flags
+- compound identifiers
+
+Important file:
+
+- `scripts/build_enriched_molecules.py`
+
+### 4. Similarity model
+
+The strongest current model path is the SQL-backed activity-pair model.
+
+Important file:
+
+- `src/molecular_similarity/sql_activity_model.py`
+
+Held-out SQL test metrics from the current report:
 
 - accuracy: `0.7313`
 - precision: `0.6243`
@@ -77,180 +195,332 @@ Held-out SQL test metrics:
 - F1: `0.5885`
 - log loss: `0.5301`
 
-Precision is the priority in this project, so I focused more on making the model preciser by target.
+The model provides a similarity probability. It does not make the final regulatory decision alone.
 
-Per-target held-out precision:
+### 5. Company compliance config
 
-- `Cytochrome P450 2D6`: precision `0.6783`, recall `0.6382`, F1 `0.6576`
-- `5-hydroxytryptamine receptor 2B`: precision `0.5896`, recall `0.5643`, F1 `0.5766`
-- `Voltage-gated inwardly rectifying potassium channel KCNH2`: precision `0.5844`, recall `0.4286`, F1 `0.4945`
+Each company can have a human-readable JSON config.
 
-The strongest precision result is currently `Cytochrome P450 2D6`.
+Example:
 
-I also kept the earlier smaller-dataset experiments:
+- `configs/example_company_config.json`
 
-- threshold model test accuracy: `0.7`
-- threshold model test precision: `0.5`
-- baseline logistic test accuracy: `0.7`
-- baseline logistic test precision: `0.5`
+Schema:
 
-Those smaller experiments were useful for debugging and validating the workflow, but the SQL-backed model is the one I use as the main project result.
+- `schemas/company_config.schema.json`
 
-## Reports And Visual Outputs
+Important file:
 
-The generated the main SQL report can be found here:
+- `src/molecular_similarity/compliance_config.py`
 
-- `exploration/reports/sql_activity_pair_model.json`
-- `exploration/reports/sql_activity_pair_model.md`
+The config controls:
 
-The generated precision-first visual outputs can also be found here:
+- jurisdictions
+- therapeutic focus
+- similarity thresholds
+- safety risk thresholds
+- phase policy
+- structural alert actions
+- deterministic rule behavior
 
-- `exploration/reports/sql_activity_pair_precision_by_target.png`
-- `exploration/reports/sql_activity_pair_precision_recall.png`
+This is the personalization layer. It does not retrain the model.
 
-The larger ChEMBL export gives a more useful AUROC view because its test split is much larger:
+### 6. RA decision router
 
-- `exploration/reports/chembl_baseline_models.md`
-- `exploration/reports/chembl_linear_model_auroc.png`
-- `exploration/reports/chembl_logistic_model_auroc.png`
+The RA router takes:
 
+- model score
+- alert flags
+- company config
 
+It returns:
 
-## Reproducibility
+- `decision`
+- `reason`
 
-I wanted the project to be runnable the same way every time, so I used:
+Important file:
 
-- Python `3.11`
-- package modules under `src/molecular_similarity/`
-- thin CLI wrappers under `scripts/`
-- `pytest` for tests
-- `ruff` for linting
+- `src/molecular_similarity/ra_decision_router.py`
 
-I can run the main workflows either from the scripts or from the installed CLIs:
+Rule principle:
 
-- `python scripts/run_linear_regression_baseline.py`
-- `molecular-similarity-linear-baseline`
-- `python scripts/run_similarity_threshold_model.py`
-- `molecular-similarity-threshold-model`
-- `python scripts/run_sql_activity_pair_model.py ./data/chembl_modeling.csv`
-- `molecular-similarity-sql-activity-model ./data/chembl_modeling.csv`
+```text
+Alert escalation always overrides score.
+```
 
-## Local Setup
+So a high model score can still become `block` if a company config marks a triggered alert as critical.
 
-1. The virtual environment:
-   `python3.11 -m venv .venv`
-2. Activate it:
-   `source .venv/bin/activate`
-3. Install the project with development dependencies:
-   `pip install -e .[dev]`
-4. Generate the pipeline figure:
-   `python scripts/generate_pipeline_figure.py`
+### 7. Precedent matcher
 
-## Main Commands I Used
+The precedent matcher looks through the top similar compounds and returns the most relevant approved analog.
 
-Data exploration:
+Important file:
 
-- `python scripts/explore_dataset.py "/path/to/dataset"`
-- `python scripts/build_dataset_index.py "/path/to/dataset"`
-- `python scripts/prepare_dataset.py "/path/to/dataset"`
+- `src/molecular_similarity/precedent_matcher.py`
 
-ETL and SQL export:
+Output:
 
-- `python scripts/etl_pipeline.py --db ./data/chembl.db --export ./data/chembl_modeling.csv`
-- `python scripts/build_enriched_molecules.py --db ./data/chembl.db --output ./data/enriched_molecules.parquet`
+```python
+{
+    "chembl_id": "...",
+    "name": "...",
+    "max_phase": 4.0,
+    "approval_year": 2012
+}
+```
 
-Compliance config validation:
+This gives RA officers a precedent-style explanation, not only a model score.
 
-- `molecular-similarity-company-config configs/example_company_config.json`
-- `molecular-similarity-company-config --print-schema`
+### 8. RA response schema
 
-Prediction audit logs:
+The API response is a full decision object validated by Pydantic.
 
-- FastAPI apps can attach `AuditLogMiddleware` to write append-only entries to `audit/{company_id}/log.jsonl`.
+Important file:
 
-Company onboarding:
+- `src/molecular_similarity/ra_response_schema.py`
 
-- FastAPI apps can include `create_onboarding_router()` to expose `POST /onboarding/library`.
-- Uploaded company libraries are stored as `indexes/{company_id}/faiss.index`.
-- Past RA decisions can be uploaded to `POST /onboarding/ra-history`.
-- Uploaded RA history is stored as `history/{company_id}/ra_decisions.parquet`.
-- Company IDs are normalized into safe per-company namespaces shared across `indexes/`, `history/`, and `audit/`.
+The response includes:
 
-Model training:
+- decision
+- reason
+- `ra_justification`
+- score summary
+- triggered alerts
+- top approved analog
+- thresholds used
+- audit trail
 
-- `python scripts/run_linear_regression_baseline.py`
-- `python scripts/run_similarity_threshold_model.py`
-- `python scripts/run_sql_activity_pair_model.py ./data/chembl_modeling.csv`
+### 9. Audit logging
 
-Precision pipeline figure:
+Every prediction call can be logged before the response is returned.
 
-- `python scripts/generate_pipeline_figure.py`
+Important file:
 
-Verification:
+- `src/molecular_similarity/audit_middleware.py`
 
-- `python -m ruff check .`
-- `python -m pytest -q`
+Output:
 
-## Docker
+- `audit/{company_id}/log.jsonl`
 
-I added a Docker workflow for a fast, reliable container run.
+The log is append-only JSONL and stores request and response context.
+
+### 10. Company onboarding
+
+Companies can upload their own internal compound library and RA decision history.
+
+Important file:
+
+- `src/molecular_similarity/company_onboarding.py`
+
+Library upload:
+
+- accepts SDF or SMILES CSV
+- standardizes compounds with RDKit
+- generates Morgan fingerprints
+- stores a FAISS index
+
+Output:
+
+- `indexes/{company_id}/faiss.index`
+- `indexes/{company_id}/metadata.json`
+
+RA history upload:
+
+- accepts past decisions as CSV
+- maps rows to compound identifiers and SMILES
+- stores company RA precedent data
+
+Output:
+
+- `history/{company_id}/ra_decisions.parquet`
+
+### 11. Multi-tenant isolation
+
+Each company has its own namespace.
+
+Important file:
+
+- `src/molecular_similarity/tenant_namespace.py`
+
+Storage pattern:
+
+```text
+configs/{company_id}/...
+indexes/{company_id}/...
+history/{company_id}/...
+audit/{company_id}/...
+rag/{company_id}/...
+```
+
+Company IDs are normalized into safe path names, so one company cannot escape into another company's storage.
+
+## Project Files
+
+Core regulatory intelligence modules:
+
+- `src/molecular_similarity/compliance_config.py`
+- `src/molecular_similarity/ra_decision_router.py`
+- `src/molecular_similarity/precedent_matcher.py`
+- `src/molecular_similarity/ra_response_schema.py`
+- `src/molecular_similarity/audit_middleware.py`
+- `src/molecular_similarity/company_onboarding.py`
+- `src/molecular_similarity/tenant_namespace.py`
+
+Core data and model modules:
+
+- `scripts/etl_pipeline.py`
+- `scripts/build_enriched_molecules.py`
+- `src/molecular_similarity/sql_activity_model.py`
+- `src/molecular_similarity/chembl_baseline_models.py`
+- `src/molecular_similarity/threshold_model.py`
+- `src/molecular_similarity/linear_regression_baseline.py`
+
+Validation and examples:
+
+- `configs/example_company_config.json`
+- `schemas/company_config.schema.json`
+- `tests/test_mock_company_e2e.py`
+- `tests/test_company_onboarding.py`
+- `tests/test_ra_response_schema.py`
+- `tests/test_audit_middleware.py`
+- `tests/test_tenant_namespace.py`
+
+## How To Run
+
+### Local setup
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+### Build the ChEMBL modeling export
+
+```bash
+python scripts/etl_pipeline.py \
+  --db ./data/chembl.db \
+  --create-schema \
+  --import-compact-chembl \
+  --generate-activity-pairs \
+  --export ./data/chembl_modeling.csv \
+  --stats
+```
+
+### Build the enriched molecule lookup
+
+```bash
+python scripts/build_enriched_molecules.py \
+  --db ./data/chembl.db \
+  --output ./data/enriched_molecules.parquet
+```
+
+### Validate company config
+
+```bash
+molecular-similarity-company-config configs/example_company_config.json
+molecular-similarity-company-config --print-schema
+```
+
+### Train the SQL activity model
+
+```bash
+python scripts/run_sql_activity_pair_model.py ./data/chembl_modeling.csv
+```
+
+### Run verification
+
+```bash
+python -m ruff check .
+python -m pytest -q
+```
+
+For a focused first-client onboarding smoke test:
+
+```bash
+python -m pytest tests/test_mock_company_e2e.py -q
+```
+
+That test creates:
+
+- mock company config
+- 20 mock compounds
+- 10 mock RA decisions
+- FAISS index
+- RA history Parquet
+- validated RA decision response with `ra_justification`
+
+## Docker And Deployment
 
 Build:
-`docker build -t molecular-similarity .`
 
-Run the default smoke workflow:
-`docker run --rm -v "$(pwd)/exploration/reports:/app/exploration/reports" molecular-similarity`
-
-The default container command generates:
-`exploration/reports/project_pipeline.png`
-
-For running the heavier SQL precision workflow inside Docker:
-
-`docker run --rm -v "$(pwd)/exploration/reports:/app/exploration/reports" molecular-similarity molecular-similarity-sql-activity-model ./data/chembl_modeling.csv --reports-dir ./exploration/reports`
-
-Docker Compose keeps company data outside the image:
-
-- `./configs:/app/configs`
-- `./indexes:/app/indexes`
-- `./history:/app/history`
-- `./audit:/app/audit`
-- `./rag:/app/rag`
-- `./exploration/reports:/app/exploration/reports`
+```bash
+docker build -t molecular-similarity .
+```
 
 Run:
 
-`docker compose run --rm molecular-similarity`
+```bash
+docker run --rm \
+  -v "$(pwd)/exploration/reports:/app/exploration/reports" \
+  molecular-similarity
+```
 
+Docker Compose keeps company data outside the image:
 
-## Project Status
+```text
+./configs:/app/configs
+./indexes:/app/indexes
+./history:/app/history
+./audit:/app/audit
+./rag:/app/rag
+./exploration/reports:/app/exploration/reports
+```
 
-I consider the ETL, model training, reporting, and reproducibility layers to be in a good research-project state.
+Run with Compose:
 
-What is already solid:
+```bash
+docker compose run --rm molecular-similarity
+```
 
-- SQL ETL pipeline
-- reproducible model CLIs
-- basic tests
-- held-out evaluation
-- precision-focused reporting
+This means company libraries, configs, RA history, audit logs, and RAG databases can be updated without rebuilding the image.
 
-What is still not final:
+## Current Status
 
-- more model improvement for higher precision on every target, especially `KCNH2`
+The project now has two layers:
 
-## CI/CD
+1. A reproducible molecular similarity and ChEMBL modeling pipeline.
+2. A regulatory decision-intelligence layer for company-specific RA workflows.
 
-I also kept a starter GitHub Actions workflow in:
-`.github/workflows/ci-cd.yml`
+Already implemented:
 
-It runs CI on pushes and pull requests, and it can build distribution artifacts on tagged releases.
+- ChEMBL ETL
+- RA metadata enrichment
+- RDKit structural alerts
+- enriched molecule Parquet lookup
+- SQL-backed activity model
+- company JSON config schema
+- deterministic RA decision router
+- approved analog precedent matcher
+- Pydantic RA response schema
+- append-only audit middleware
+- company onboarding for libraries and RA history
+- tenant-isolated storage
+- Docker Compose persistent mounts
+- end-to-end mock company test
+
+Still future work:
+
+- expose a full production FastAPI app entrypoint
+- connect the similarity model, FAISS lookup, precedent matcher, and router in one live `/predict` route
+- add richer RAG databases for regulatory guidance retrieval
+- improve model precision on target-specific tasks such as KCNH2
+- add authentication and production-grade access control
 
 ## Project Information
 
-**Author:** Ismail Cherkaoui Aadil  
+Project: Regulatory Decision Intelligence for Molecular Similarity
 
-**Institute:** University Hamburg 
+Subject: Data Science
 
-**Subject:** Modul. Data Science
-
-**Project:** Modul final Project
+Author: Ismail Cherkaoui Aadil
