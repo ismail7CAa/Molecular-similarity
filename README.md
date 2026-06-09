@@ -25,6 +25,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I added a company onboarding endpoint that accepts SDF or SMILES CSV libraries, standardizes compounds with RDKit, generates fingerprints, and stores company-scoped FAISS indexes.
 - I added a company RA history upload endpoint that stores past decisions as company-scoped Parquet for inference-time precedent context.
 - I added shared tenant namespace handling so each company ID maps to isolated index, history, and audit storage.
+- I added an end-to-end mock-company onboarding test with 20 compounds, 10 RA decisions, FAISS indexing, RA routing, and validated response justification.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset

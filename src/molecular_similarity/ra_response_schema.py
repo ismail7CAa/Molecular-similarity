@@ -71,6 +71,16 @@ class RAAuditEvent(BaseModel):
     message: str = Field(min_length=1)
 
 
+class RAJustification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    summary: str = Field(min_length=1)
+    score_rationale: str = Field(min_length=1)
+    alert_rationale: str = Field(default="No configured alerts were triggered.")
+    precedent_rationale: str = Field(default="No approved analog precedent was found.")
+    history_rationale: str = Field(default="No company RA history context was attached.")
+
+
 class RADecisionResponse(BaseModel):
     """Auditable RA-readable response object returned by the compliance API."""
 
@@ -82,6 +92,7 @@ class RADecisionResponse(BaseModel):
     input_compound: RAInputCompound
     decision: Decision
     reason: str = Field(min_length=1)
+    ra_justification: RAJustification
     score: RAScoreSummary
     triggered_alerts: list[RAAlertSummary] = Field(default_factory=list)
     top_analog: RAPrecedentAnalog | None = None
@@ -119,20 +130,39 @@ def build_ra_decision_response(
     alert_summaries: list[dict[str, object]] | None = None,
     top_analog: dict[str, object] | None = None,
     audit_trail: list[dict[str, object]] | None = None,
+    ra_justification: dict[str, object] | None = None,
 ) -> RADecisionResponse:
     """Build and validate the full RA response object on every call."""
+    score_band = confidence_band_for_score(decision.model_score, thresholds)
+    default_justification = {
+        "summary": decision.reason,
+        "score_rationale": (
+            f"Model score {decision.model_score:.4f} maps to {score_band} confidence "
+            "using company similarity thresholds."
+        ),
+        "alert_rationale": (
+            "Triggered alerts: " + ", ".join(decision.triggered_alerts)
+            if decision.triggered_alerts
+            else "No configured alerts were triggered."
+        ),
+        "precedent_rationale": (
+            "Approved analog precedent attached: "
+            + str(top_analog.get("chembl_id"))
+            if top_analog
+            else "No approved analog precedent was found."
+        ),
+        "history_rationale": "No company RA history context was attached.",
+    }
     return RADecisionResponse.model_validate(
         {
             "company_id": company_id,
             "input_compound": input_compound,
             "decision": decision.decision,
             "reason": decision.reason,
+            "ra_justification": ra_justification or default_justification,
             "score": {
                 "model_score": decision.model_score,
-                "confidence_band": confidence_band_for_score(
-                    decision.model_score,
-                    thresholds,
-                ),
+                "confidence_band": score_band,
             },
             "triggered_alerts": alert_summaries or [],
             "top_analog": top_analog,

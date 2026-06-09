@@ -52,6 +52,8 @@ def test_build_ra_decision_response_creates_auditable_object() -> None:
     )
 
     assert response.decision == "block"
+    assert response.ra_justification.summary.startswith("Alert escalation")
+    assert "alerts_nitrosamine" in response.ra_justification.alert_rationale
     assert response.score.model_score == 0.98
     assert response.score.confidence_band == "high"
     assert response.top_analog is not None
