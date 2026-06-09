@@ -65,54 +65,27 @@ The ML model still gives the similarity signal. The compliance layer turns that 
 
 ## Simple System Diagram
 
-```text
-             Public ChEMBL data
-                     |
-                     v
-        ETL + regulatory enrichment
-        phase, approval, alerts, labels
-                     |
-                     v
-          Enriched molecule lookup
-        data/enriched_molecules.parquet
-                     |
-                     v
-User compound -> similarity model -> top similar compounds
-                     |
-                     v
-             Precedent matcher
-        approved analog + RA metadata
-                     |
-                     v
-        Company compliance config
-     thresholds, jurisdictions, alert actions
-                     |
-                     v
-           RA decision router
-       deterministic rules, no retraining
-                     |
-                     v
-       RA-readable decision response
-   decision, reason, justification, audit trail
-                     |
-                     v
-           Append-only audit log
-        audit/{company_id}/log.jsonl
-```
+```mermaid
+flowchart TD
+    A[Public ChEMBL data] --> B[Regulatory enrichment<br/>phase, approval, alerts]
+    B --> C[Enriched molecule lookup<br/>Parquet]
 
-Company onboarding adds private context:
+    D[Company onboarding] --> E[Private company context]
+    E --> E1[Compound library<br/>FAISS index]
+    E --> E2[Past RA decisions<br/>Parquet history]
+    E --> E3[Company config<br/>thresholds and rules]
 
-```text
-Company library upload         Company RA history upload
-SDF or SMILES CSV              past decisions CSV
-        |                              |
-        v                              v
-RDKit standardization           Parquet history file
-Morgan fingerprints             history/{company_id}/ra_decisions.parquet
-        |
-        v
-FAISS index
-indexes/{company_id}/faiss.index
+    C --> F[Similarity model]
+    E1 --> F
+    F --> G[Top similar compounds]
+    G --> H[Precedent matcher<br/>approved analog]
+
+    H --> I[RA decision router]
+    E2 --> I
+    E3 --> I
+
+    I --> J[RA-readable decision<br/>decision, reason, justification]
+    J --> K[Append-only audit log]
 ```
 
 ## Main Components
