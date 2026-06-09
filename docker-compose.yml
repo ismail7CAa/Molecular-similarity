@@ -15,6 +15,7 @@ services:
       COMPANY_HISTORY_ROOT: /app/history
       COMPANY_AUDIT_ROOT: /app/audit
       RAG_DB_ROOT: /app/rag
+      API_KEYS_FILE: /app/configs/api_keys.json
     volumes:
       - ./configs:/app/configs
       - ./indexes:/app/indexes

@@ -53,7 +53,7 @@ class APIKeyAccessControl:
         header_name = os.environ.get("API_KEY_HEADER", DEFAULT_API_KEY_HEADER)
         raw_config = os.environ.get("API_KEYS_JSON")
         config_path = os.environ.get("API_KEYS_FILE")
-        if raw_config is None and config_path:
+        if raw_config is None and config_path and Path(config_path).exists():
             raw_config = Path(config_path).read_text()
         if raw_config is None:
             return cls(records=[], header_name=header_name)

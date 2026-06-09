@@ -449,6 +449,60 @@ Production configs should store `key_sha256` instead of the plaintext `key`:
 Access control is company-scoped. A key assigned to `client_a` cannot call `/predict`
 or onboarding routes for `client_b`.
 
+### Short demo
+
+Create a local demo API key:
+
+```bash
+cat > configs/api_keys.json <<'JSON'
+{
+  "demo-key": {
+    "key": "demo-secret",
+    "company_ids": ["example_pharma"],
+    "scopes": ["predict", "onboarding", "admin"]
+  }
+}
+JSON
+```
+
+Start the API:
+
+```bash
+docker compose up --build molecular-similarity
+```
+
+Check health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Run a demo prediction:
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: demo-secret' \
+  -d '{
+    "company_id": "example_pharma",
+    "input_compound": {
+      "chembl_id": "CHEMBL_DEMO",
+      "name": "Demo candidate",
+      "smiles": "CN=O"
+    },
+    "model_score": 0.93,
+    "alert_flags": {
+      "alerts_nitrosamine": true
+    },
+    "top_analog": {
+      "chembl_id": "CHEMBL25",
+      "name": "Approved analog",
+      "max_phase": 4.0,
+      "approval_year": 2018
+    }
+  }'
+```
+
 ### Train the SQL activity model
 
 ```bash
