@@ -22,6 +22,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I added a precedent matcher that looks up the most relevant approved analog from the enriched molecule dataset for RA context.
 - I added a Pydantic RA response schema so API outputs become full, auditable decision objects instead of binary score-only responses.
 - I added FastAPI audit middleware that appends every prediction request/response context to company-specific JSONL logs before returning.
+- I added a company onboarding endpoint that accepts SDF or SMILES CSV libraries, standardizes compounds with RDKit, generates fingerprints, and stores company-scoped FAISS indexes.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
@@ -163,6 +164,11 @@ Compliance config validation:
 Prediction audit logs:
 
 - FastAPI apps can attach `AuditLogMiddleware` to write append-only entries to `audit/{company_id}/log.jsonl`.
+
+Company onboarding:
+
+- FastAPI apps can include `create_onboarding_router()` to expose `POST /onboarding/library`.
+- Uploaded company libraries are stored as `indexes/{company_id}/faiss.index`.
 
 Model training:
 
