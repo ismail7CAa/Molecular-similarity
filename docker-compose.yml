@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     image: molecular-similarity:latest
     container_name: molecular-similarity
+    ports:
+      - "8000:8000"
     environment:
       MPLBACKEND: Agg
       MPLCONFIGDIR: /tmp/matplotlib

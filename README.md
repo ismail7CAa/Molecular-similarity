@@ -336,6 +336,7 @@ Core regulatory intelligence modules:
 - `src/molecular_similarity/precedent_matcher.py`
 - `src/molecular_similarity/ra_response_schema.py`
 - `src/molecular_similarity/audit_middleware.py`
+- `src/molecular_similarity/api.py`
 - `src/molecular_similarity/company_onboarding.py`
 - `src/molecular_similarity/tenant_namespace.py`
 
@@ -395,6 +396,26 @@ molecular-similarity-company-config configs/example_company_config.json
 molecular-similarity-company-config --print-schema
 ```
 
+### Run the production API
+
+```bash
+molecular-similarity-api
+```
+
+Equivalent direct command:
+
+```bash
+uvicorn molecular_similarity.api:app --host 0.0.0.0 --port 8000
+```
+
+Main endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `POST /predict`
+- `POST /onboarding/library`
+- `POST /onboarding/ra-history`
+
 ### Train the SQL activity model
 
 ```bash
@@ -435,6 +456,12 @@ Run:
 
 ```bash
 docker run --rm \
+  -p 8000:8000 \
+  -v "$(pwd)/configs:/app/configs" \
+  -v "$(pwd)/indexes:/app/indexes" \
+  -v "$(pwd)/history:/app/history" \
+  -v "$(pwd)/audit:/app/audit" \
+  -v "$(pwd)/rag:/app/rag" \
   -v "$(pwd)/exploration/reports:/app/exploration/reports" \
   molecular-similarity
 ```
@@ -453,7 +480,7 @@ Docker Compose keeps company data outside the image:
 Run with Compose:
 
 ```bash
-docker compose run --rm molecular-similarity
+docker compose up molecular-similarity
 ```
 
 This means company libraries, configs, RA history, audit logs, and RAG databases can be updated without rebuilding the image.
@@ -481,11 +508,11 @@ Already implemented:
 - tenant-isolated storage
 - Docker Compose persistent mounts
 - end-to-end mock company test
+- expose a full production FastAPI app entrypoint
+- connect the similarity model, FAISS lookup, precedent matcher, and router in one live `/predict` route
 
 Still future work:
 
-- expose a full production FastAPI app entrypoint
-- connect the similarity model, FAISS lookup, precedent matcher, and router in one live `/predict` route
 - add richer RAG databases for regulatory guidance retrieval
 - improve model precision on target-specific tasks such as KCNH2
 - add authentication and production-grade access control

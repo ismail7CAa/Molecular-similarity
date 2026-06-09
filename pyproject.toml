@@ -19,10 +19,12 @@ dependencies = [
   "rdkit>=2026.3",
   "scikit-learn>=1.4",
   "umap-learn>=0.5",
+  "uvicorn>=0.30",
 ]
 
 [project.scripts]
 molecular-similarity-company-config = "molecular_similarity.compliance_config:main"
+molecular-similarity-api = "molecular_similarity.api:main"
 molecular-similarity-linear-baseline = "molecular_similarity.linear_regression_baseline:main"
 molecular-similarity-sql-activity-model = "molecular_similarity.sql_activity_model:main"
 molecular-similarity-threshold-model = "molecular_similarity.threshold_model:main"

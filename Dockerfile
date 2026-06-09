@@ -16,4 +16,6 @@ COPY exploration ./exploration
 
 RUN mkdir -p /tmp/matplotlib && pip install --no-cache-dir .
 
-CMD ["python", "scripts/generate_pipeline_figure.py"]
+EXPOSE 8000
+
+CMD ["uvicorn", "molecular_similarity.api:app", "--host", "0.0.0.0", "--port", "8000"]
