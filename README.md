@@ -18,6 +18,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I enriched ChEMBL molecules with regulatory-assessment features, including clinical phase, therapeutic area, indication count, approval metadata, route flags, and safety-alert labels.
 - I added RDKit SMARTS structural-alert flags as boolean columns for each molecule and propagated them into the pair-level modeling dataset.
 - I added a company compliance config schema and Pydantic validator so RA officers can personalize thresholds and rule actions through JSON.
+- I added a deterministic RA decision router that combines model score, alert flags, and company config into a structured compliance decision.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
