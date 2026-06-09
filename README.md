@@ -207,6 +207,19 @@ For running the heavier SQL precision workflow inside Docker:
 
 `docker run --rm -v "$(pwd)/exploration/reports:/app/exploration/reports" molecular-similarity molecular-similarity-sql-activity-model ./data/chembl_modeling.csv --reports-dir ./exploration/reports`
 
+Docker Compose keeps company data outside the image:
+
+- `./configs:/app/configs`
+- `./indexes:/app/indexes`
+- `./history:/app/history`
+- `./audit:/app/audit`
+- `./rag:/app/rag`
+- `./exploration/reports:/app/exploration/reports`
+
+Run:
+
+`docker compose run --rm molecular-similarity`
+
 
 ## Project Status
 

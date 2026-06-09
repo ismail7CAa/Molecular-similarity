@@ -1,0 +1,22 @@
+services:
+  molecular-similarity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: molecular-similarity:latest
+    container_name: molecular-similarity
+    environment:
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: /tmp/matplotlib
+      COMPANY_CONFIG_ROOT: /app/configs
+      COMPANY_INDEX_ROOT: /app/indexes
+      COMPANY_HISTORY_ROOT: /app/history
+      COMPANY_AUDIT_ROOT: /app/audit
+      RAG_DB_ROOT: /app/rag
+    volumes:
+      - ./configs:/app/configs
+      - ./indexes:/app/indexes
+      - ./history:/app/history
+      - ./audit:/app/audit
+      - ./rag:/app/rag
+      - ./exploration/reports:/app/exploration/reports
