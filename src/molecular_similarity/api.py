@@ -4,9 +4,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from molecular_similarity.access_control import APIKeyAccessControl
 from molecular_similarity.audit_middleware import AuditLogMiddleware
 from molecular_similarity.company_onboarding import create_onboarding_router
 from molecular_similarity.compliance_config import CompanyComplianceConfig, load_company_config
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
         "ENRICHED_MOLECULES_PATH",
         "data/enriched_molecules.parquet",
     )
+    access_control = APIKeyAccessControl.from_environment()
 
     app = FastAPI(
         title="Regulatory Decision Intelligence API",
@@ -111,14 +113,15 @@ def create_app() -> FastAPI:
         audited_paths=("/predict",),
     )
     app.include_router(
-        create_onboarding_router(index_root=index_root, history_root=history_root)
+        create_onboarding_router(index_root=index_root, history_root=history_root),
+        dependencies=[Depends(access_control.require("onboarding"))],
     )
 
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/ready")
+    @app.get("/ready", dependencies=[Depends(access_control.require("admin"))])
     def ready() -> dict[str, object]:
         return {
             "status": "ready",
@@ -128,7 +131,11 @@ def create_app() -> FastAPI:
             "audit_root": str(audit_root),
         }
 
-    @app.post("/predict", response_model=RADecisionResponse)
+    @app.post(
+        "/predict",
+        response_model=RADecisionResponse,
+        dependencies=[Depends(access_control.require("predict"))],
+    )
     def predict(request: PredictRequest) -> RADecisionResponse:
         config = _load_company_config(config_root, request.company_id)
         decision = RADecisionRouter(config).route(

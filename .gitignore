@@ -10,3 +10,7 @@ build/
 .env
 data/chembl/
 data/chembl.db
+audit/
+history/
+indexes/
+rag/

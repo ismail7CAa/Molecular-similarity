@@ -47,6 +47,31 @@ def _write_company_config(config_root: Path) -> None:
     )
 
 
+def _set_mock_api_keys(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "API_KEYS_JSON",
+        json.dumps(
+            {
+                "mock-ra-key": {
+                    "key": "secret-mock-key",
+                    "company_ids": ["mock_company"],
+                    "scopes": ["predict", "onboarding", "admin"],
+                },
+                "other-company-key": {
+                    "key": "secret-other-key",
+                    "company_ids": ["other_company"],
+                    "scopes": ["predict", "onboarding", "admin"],
+                },
+                "platform-admin-key": {
+                    "key": "secret-admin-key",
+                    "company_ids": ["*"],
+                    "scopes": ["*"],
+                },
+            }
+        ),
+    )
+
+
 def test_production_api_predict_returns_ra_decision_and_audit_log(
     tmp_path: Path,
     monkeypatch,
@@ -58,6 +83,7 @@ def test_production_api_predict_returns_ra_decision_and_audit_log(
     monkeypatch.setenv("COMPANY_INDEX_ROOT", str(tmp_path / "indexes"))
     monkeypatch.setenv("COMPANY_HISTORY_ROOT", str(tmp_path / "history"))
     monkeypatch.setenv("COMPANY_AUDIT_ROOT", str(audit_root))
+    _set_mock_api_keys(monkeypatch)
 
     client = TestClient(create_app())
 
@@ -67,6 +93,7 @@ def test_production_api_predict_returns_ra_decision_and_audit_log(
 
     response = client.post(
         "/predict",
+        headers={"X-API-Key": "secret-mock-key"},
         json={
             "company_id": "mock_company",
             "input_compound": {
@@ -107,10 +134,12 @@ def test_production_api_predict_returns_ra_decision_and_audit_log(
 def test_production_api_rejects_missing_company_config(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("COMPANY_CONFIG_ROOT", str(tmp_path / "configs"))
     monkeypatch.setenv("COMPANY_AUDIT_ROOT", str(tmp_path / "audit"))
+    _set_mock_api_keys(monkeypatch)
 
     client = TestClient(create_app())
     response = client.post(
         "/predict",
+        headers={"X-API-Key": "secret-admin-key"},
         json={
             "company_id": "unknown_company",
             "input_compound": {"chembl_id": "CHEMBL1", "name": "", "smiles": "CCO"},
@@ -119,3 +148,73 @@ def test_production_api_rejects_missing_company_config(tmp_path: Path, monkeypat
     )
 
     assert response.status_code == 404
+
+
+def test_production_api_requires_api_key(tmp_path: Path, monkeypatch) -> None:
+    config_root = tmp_path / "configs"
+    _write_company_config(config_root)
+    monkeypatch.setenv("COMPANY_CONFIG_ROOT", str(config_root))
+    _set_mock_api_keys(monkeypatch)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/predict",
+        json={
+            "company_id": "mock_company",
+            "input_compound": {"chembl_id": "CHEMBL1", "name": "", "smiles": "CCO"},
+            "model_score": 0.5,
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_production_api_blocks_cross_company_access(tmp_path: Path, monkeypatch) -> None:
+    config_root = tmp_path / "configs"
+    _write_company_config(config_root)
+    monkeypatch.setenv("COMPANY_CONFIG_ROOT", str(config_root))
+    _set_mock_api_keys(monkeypatch)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/predict",
+        headers={"X-API-Key": "secret-other-key"},
+        json={
+            "company_id": "mock_company",
+            "input_compound": {"chembl_id": "CHEMBL1", "name": "", "smiles": "CCO"},
+            "model_score": 0.5,
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_production_api_authorizes_onboarding_upload_by_company(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("COMPANY_CONFIG_ROOT", str(tmp_path / "configs"))
+    monkeypatch.setenv("COMPANY_INDEX_ROOT", str(tmp_path / "indexes"))
+    monkeypatch.setenv("COMPANY_AUDIT_ROOT", str(tmp_path / "audit"))
+    _set_mock_api_keys(monkeypatch)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/onboarding/library",
+        headers={"X-API-Key": "secret-mock-key"},
+        data={"company_id": "mock_company"},
+        files={"file": ("library.csv", b"compound_id,smiles,name\nC1,CCO,Ethanol\n")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["company_id"] == "mock_company"
+    assert (tmp_path / "indexes" / "mock_company" / "faiss.index").exists()
+
+    blocked_response = client.post(
+        "/onboarding/library",
+        headers={"X-API-Key": "secret-other-key"},
+        data={"company_id": "mock_company"},
+        files={"file": ("library.csv", b"compound_id,smiles,name\nC1,CCO,Ethanol\n")},
+    )
+
+    assert blocked_response.status_code == 403

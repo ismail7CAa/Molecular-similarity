@@ -27,6 +27,7 @@ I built the project step by step:
 - Added append-only audit logging for prediction calls.
 - Added company onboarding endpoints for internal libraries and past RA decisions.
 - Added multi-tenant isolation so each company has separate indexes, history, configs, and audit logs.
+- Added API-key authentication with company-scoped access control.
 - Added Docker Compose mounts so company data persists across container restarts.
 - Added an end-to-end mock company test with 20 compounds and 10 RA decisions.
 
@@ -410,11 +411,43 @@ uvicorn molecular_similarity.api:app --host 0.0.0.0 --port 8000
 
 Main endpoints:
 
-- `GET /health`
-- `GET /ready`
-- `POST /predict`
-- `POST /onboarding/library`
-- `POST /onboarding/ra-history`
+- `GET /health` public health check
+- `GET /ready` protected readiness check
+- `POST /predict` protected RA decision endpoint
+- `POST /onboarding/library` protected company library upload
+- `POST /onboarding/ra-history` protected RA history upload
+
+### API authentication
+
+Protected endpoints require an `X-API-Key` header. Keys are configured with either
+`API_KEYS_JSON` or `API_KEYS_FILE`.
+
+Example development config:
+
+```bash
+export API_KEYS_JSON='{
+  "mock-ra-key": {
+    "key": "replace-with-a-real-secret",
+    "company_ids": ["mock_company"],
+    "scopes": ["predict", "onboarding", "admin"]
+  }
+}'
+```
+
+Production configs should store `key_sha256` instead of the plaintext `key`:
+
+```json
+{
+  "client-key-001": {
+    "key_sha256": "sha256-hex-digest-here",
+    "company_ids": ["client_company"],
+    "scopes": ["predict", "onboarding"]
+  }
+}
+```
+
+Access control is company-scoped. A key assigned to `client_a` cannot call `/predict`
+or onboarding routes for `client_b`.
 
 ### Train the SQL activity model
 
@@ -457,6 +490,7 @@ Run:
 ```bash
 docker run --rm \
   -p 8000:8000 \
+  -e API_KEYS_FILE=/app/configs/api_keys.json \
   -v "$(pwd)/configs:/app/configs" \
   -v "$(pwd)/indexes:/app/indexes" \
   -v "$(pwd)/history:/app/history" \
@@ -506,6 +540,7 @@ Already implemented:
 - append-only audit middleware
 - company onboarding for libraries and RA history
 - tenant-isolated storage
+- API-key authentication and company-scoped access control
 - Docker Compose persistent mounts
 - end-to-end mock company test
 - expose a full production FastAPI app entrypoint
@@ -515,7 +550,6 @@ Still future work:
 
 - add richer RAG databases for regulatory guidance retrieval
 - improve model precision on target-specific tasks such as KCNH2
-- add authentication and production-grade access control
 
 ## Project Information
 
