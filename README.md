@@ -12,6 +12,14 @@ This project turns a molecular similarity workflow into a regulatory decision-in
 
 The idea is simple: keep the ML model focused on molecular similarity, then add deterministic regulatory layers around it. That gives RA officers a structured answer they can read, adjust, audit, and defend without retraining the model for every company.
 
+## Naming Note
+
+The repository and product name is **Regulatory Intelligence**. The Python package
+and console commands still use `molecular_similarity` / `molecular-similarity`
+because the project started as a molecular similarity workflow. Keeping that package
+name avoids unnecessary import churn while the product branding moves toward
+regulatory decision intelligence.
+
 ## What we did ?
 
 I built the project step by step:
@@ -397,7 +405,7 @@ molecular-similarity-company-config configs/example_company_config.json
 molecular-similarity-company-config --print-schema
 ```
 
-### Run the production API
+### Run the production-style API prototype
 
 ```bash
 molecular-similarity-api
@@ -419,7 +427,12 @@ Main endpoints:
 
 ### API authentication
 
-Protected endpoints require an `X-API-Key` header. Keys are configured with either
+Protected endpoints require an `X-API-Key` header. This is a production-style
+prototype access layer, not a full enterprise security stack. A deployed GxP system
+would also need stronger secrets management, monitoring, validation reports,
+versioned models/data, and durable database-backed audit logs.
+
+Keys are configured with either
 `API_KEYS_JSON` or `API_KEYS_FILE`.
 
 Example development config:
@@ -597,7 +610,7 @@ Already implemented:
 - API-key authentication and company-scoped access control
 - Docker Compose persistent mounts
 - end-to-end mock company test
-- expose a full production FastAPI app entrypoint
+- expose a production-style FastAPI app entrypoint
 - connect the similarity model, FAISS lookup, precedent matcher, and router in one live `/predict` route
 
 Still future work:
