@@ -16,6 +16,7 @@ from rdkit.Chem import rdFingerprintGenerator
 
 
 DEFAULT_INDEX_ROOT = Path("indexes")
+DEFAULT_HISTORY_ROOT = Path("history")
 FINGERPRINT_SIZE = 2048
 MORGAN_GENERATOR = rdFingerprintGenerator.GetMorganGenerator(
     radius=2,
@@ -30,6 +31,18 @@ class StandardizedCompound:
     compound_id: str
     name: str
     canonical_smiles: str
+
+
+@dataclass(frozen=True)
+class RADecisionHistoryRow:
+    compound_id: str
+    chembl_id: str
+    name: str
+    canonical_smiles: str
+    ra_outcome: str
+    decision_date: str
+    jurisdiction: str
+    notes: str
 
 
 def safe_company_id(company_id: str) -> str:
@@ -130,6 +143,125 @@ def parse_library_upload(filename: str, content: bytes) -> list[StandardizedComp
     raise ValueError("Unsupported library format. Upload SDF or SMILES CSV.")
 
 
+def parse_ra_history_csv(content: bytes) -> list[RADecisionHistoryRow]:
+    text = content.decode("utf-8-sig")
+    reader = csv.DictReader(StringIO(text))
+    if reader.fieldnames is None:
+        raise ValueError("RA history CSV must include a header row")
+
+    field_map = {field.lower().strip(): field for field in reader.fieldnames}
+    outcome_field = (
+        field_map.get("ra_outcome")
+        or field_map.get("outcome")
+        or field_map.get("decision")
+        or field_map.get("ra_decision")
+    )
+    if outcome_field is None:
+        raise ValueError("RA history CSV must include an ra_outcome, outcome, or decision column")
+
+    smiles_field = field_map.get("smiles") or field_map.get("canonical_smiles")
+    compound_id_field = (
+        field_map.get("compound_id")
+        or field_map.get("molecule_id")
+        or field_map.get("id")
+    )
+    chembl_id_field = field_map.get("chembl_id")
+    name_field = field_map.get("name") or field_map.get("compound_name")
+    date_field = field_map.get("decision_date") or field_map.get("date")
+    jurisdiction_field = field_map.get("jurisdiction")
+    notes_field = field_map.get("notes") or field_map.get("rationale")
+
+    history_rows: list[RADecisionHistoryRow] = []
+    for row_number, row in enumerate(reader, start=1):
+        ra_outcome = (row.get(outcome_field) or "").strip()
+        if not ra_outcome:
+            continue
+
+        raw_smiles = (row.get(smiles_field) or "").strip() if smiles_field else ""
+        compound_id = (
+            (row.get(compound_id_field) or "").strip()
+            if compound_id_field
+            else f"row_{row_number}"
+        )
+        chembl_id = (row.get(chembl_id_field) or "").strip() if chembl_id_field else ""
+        name = (row.get(name_field) or "").strip() if name_field else ""
+        canonical_smiles = ""
+        if raw_smiles:
+            compound = standardize_molecule(
+                Chem.MolFromSmiles(raw_smiles),
+                compound_id=compound_id or chembl_id or f"row_{row_number}",
+                name=name,
+            )
+            if compound is None:
+                continue
+            canonical_smiles = compound.canonical_smiles
+            compound_id = compound_id or compound.compound_id
+
+        if not any([compound_id, chembl_id, canonical_smiles]):
+            continue
+
+        history_rows.append(
+            RADecisionHistoryRow(
+                compound_id=compound_id or chembl_id or canonical_smiles,
+                chembl_id=chembl_id,
+                name=name,
+                canonical_smiles=canonical_smiles,
+                ra_outcome=ra_outcome,
+                decision_date=(row.get(date_field) or "").strip() if date_field else "",
+                jurisdiction=(
+                    (row.get(jurisdiction_field) or "").strip()
+                    if jurisdiction_field
+                    else ""
+                ),
+                notes=(row.get(notes_field) or "").strip() if notes_field else "",
+            )
+        )
+
+    return history_rows
+
+
+def write_company_ra_history(
+    company_id: str,
+    history_rows: list[RADecisionHistoryRow],
+    history_root: Path = DEFAULT_HISTORY_ROOT,
+) -> dict[str, object]:
+    if not history_rows:
+        raise ValueError("No valid RA history rows found in uploaded CSV")
+
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as error:
+        raise RuntimeError(
+            "Writing RA history parquet requires pyarrow. "
+            "Install project dependencies with: pip install -e .[dev]"
+        ) from error
+
+    normalized_company_id = safe_company_id(company_id)
+    company_history_dir = history_root / normalized_company_id
+    company_history_dir.mkdir(parents=True, exist_ok=True)
+    history_path = company_history_dir / "ra_decisions.parquet"
+    rows = [
+        {
+            "compound_id": row.compound_id,
+            "chembl_id": row.chembl_id,
+            "name": row.name,
+            "canonical_smiles": row.canonical_smiles,
+            "ra_outcome": row.ra_outcome,
+            "decision_date": row.decision_date,
+            "jurisdiction": row.jurisdiction,
+            "notes": row.notes,
+        }
+        for row in history_rows
+    ]
+    pq.write_table(pa.Table.from_pylist(rows), history_path)
+    return {
+        "company_id": normalized_company_id,
+        "history_count": len(rows),
+        "history_path": str(history_path),
+    }
+
+
 def fingerprint_matrix(compounds: list[StandardizedCompound]) -> np.ndarray:
     matrix = np.zeros((len(compounds), FINGERPRINT_SIZE), dtype=np.float32)
     for row_index, compound in enumerate(compounds):
@@ -187,7 +319,10 @@ def build_company_faiss_index(
     }
 
 
-def create_onboarding_router(index_root: Path = DEFAULT_INDEX_ROOT) -> APIRouter:
+def create_onboarding_router(
+    index_root: Path = DEFAULT_INDEX_ROOT,
+    history_root: Path = DEFAULT_HISTORY_ROOT,
+) -> APIRouter:
     router = APIRouter()
 
     @router.post("/onboarding/library")
@@ -202,6 +337,24 @@ def create_onboarding_router(index_root: Path = DEFAULT_INDEX_ROOT) -> APIRouter
                 company_id=company_id,
                 compounds=compounds,
                 index_root=index_root,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @router.post("/onboarding/ra-history")
+    async def upload_ra_history(
+        company_id: Annotated[str, Form(...)],
+        file: Annotated[UploadFile, File(...)],
+    ) -> dict[str, object]:
+        try:
+            if Path(file.filename or "").suffix.lower() != ".csv":
+                raise ValueError("RA history upload must be a CSV file")
+            content = await file.read()
+            history_rows = parse_ra_history_csv(content)
+            return write_company_ra_history(
+                company_id=company_id,
+                history_rows=history_rows,
+                history_root=history_root,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
