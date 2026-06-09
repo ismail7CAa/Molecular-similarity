@@ -182,3 +182,56 @@ def test_onboarding_endpoint_rejects_ra_history_without_outcome(
 
     assert response.status_code == 400
     assert "ra_outcome" in response.json()["detail"]
+
+
+def test_company_storage_is_isolated_between_tenants(tmp_path: Path) -> None:
+    compounds_a = parse_smiles_csv(b"compound_id,smiles\nA1,CCO\n")
+    compounds_b = parse_smiles_csv(b"compound_id,smiles\nB1,CCN\nB2,CCC\n")
+    index_root = tmp_path / "indexes"
+
+    result_a = build_company_faiss_index("Company A", compounds_a, index_root=index_root)
+    result_b = build_company_faiss_index("Company B", compounds_b, index_root=index_root)
+
+    assert Path(str(result_a["index_path"])) == index_root / "company_a" / "faiss.index"
+    assert Path(str(result_b["index_path"])) == index_root / "company_b" / "faiss.index"
+    assert faiss.read_index(str(result_a["index_path"])).ntotal == 1
+    assert faiss.read_index(str(result_b["index_path"])).ntotal == 2
+
+
+def test_company_history_is_isolated_between_tenants(tmp_path: Path) -> None:
+    history_root = tmp_path / "history"
+    rows_a = parse_ra_history_csv(b"compound_id,smiles,ra_outcome\nA1,CCO,approved\n")
+    rows_b = parse_ra_history_csv(
+        b"compound_id,smiles,ra_outcome\nB1,CCN,rejected\nB2,CCC,approved\n"
+    )
+
+    result_a = write_company_ra_history("Company A", rows_a, history_root=history_root)
+    result_b = write_company_ra_history("Company B", rows_b, history_root=history_root)
+
+    assert Path(str(result_a["history_path"])) == (
+        history_root / "company_a" / "ra_decisions.parquet"
+    )
+    assert Path(str(result_b["history_path"])) == (
+        history_root / "company_b" / "ra_decisions.parquet"
+    )
+
+    import pyarrow.parquet as pq
+
+    assert pq.read_table(str(result_a["history_path"])).num_rows == 1
+    assert pq.read_table(str(result_b["history_path"])).num_rows == 2
+
+
+def test_company_id_path_traversal_is_forced_into_safe_namespace(
+    tmp_path: Path,
+) -> None:
+    compounds = parse_smiles_csv(b"compound_id,smiles\nCMPD1,CCO\n")
+
+    result = build_company_faiss_index(
+        company_id="../Other Company",
+        compounds=compounds,
+        index_root=tmp_path / "indexes",
+    )
+
+    index_path = Path(str(result["index_path"]))
+    assert index_path == tmp_path / "indexes" / "other_company" / "faiss.index"
+    assert index_path.exists()

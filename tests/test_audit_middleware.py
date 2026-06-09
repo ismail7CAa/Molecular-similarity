@@ -88,3 +88,22 @@ def test_audit_middleware_ignores_non_audited_paths(
 
     assert response.status_code == 200
     assert not audit_root.exists()
+
+
+def test_audit_middleware_sanitizes_company_namespace(
+    tmp_path: Path,
+) -> None:
+    audit_root = tmp_path / "audit"
+    client = TestClient(_create_app(audit_root))
+
+    response = client.post(
+        "/predict",
+        json={
+            "company_id": "../Other Company",
+            "chembl_id": "CHEMBL1",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (audit_root / "other_company" / "log.jsonl").exists()
+    assert not (tmp_path / "Other Company").exists()

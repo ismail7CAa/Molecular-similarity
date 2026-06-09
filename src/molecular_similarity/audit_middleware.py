@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -9,9 +8,10 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from molecular_similarity.tenant_namespace import company_namespace_path, safe_company_id
+
 
 DEFAULT_AUDIT_ROOT = Path("audit")
-COMPANY_ID_PATTERN = re.compile(r"[^a-zA-Z0-9_-]+")
 
 
 class AuditLogEntry(BaseModel):
@@ -25,12 +25,6 @@ class AuditLogEntry(BaseModel):
     status_code: int
     request: dict[str, object]
     response: dict[str, object]
-
-
-def _safe_company_id(company_id: object) -> str:
-    normalized = COMPANY_ID_PATTERN.sub("_", str(company_id or "unknown").strip())
-    normalized = normalized.strip("_").lower()
-    return normalized or "unknown"
 
 
 def _decode_json_body(body: bytes) -> object:
@@ -56,18 +50,17 @@ def _company_id_from_context(
     response_body: object,
 ) -> str:
     if isinstance(response_body, dict) and response_body.get("company_id"):
-        return _safe_company_id(response_body["company_id"])
+        return safe_company_id(response_body["company_id"])
     if isinstance(request_body, dict) and request_body.get("company_id"):
-        return _safe_company_id(request_body["company_id"])
+        return safe_company_id(request_body["company_id"])
     header_company_id = _header_value(scope, "x-company-id")
     if header_company_id:
-        return _safe_company_id(header_company_id)
+        return safe_company_id(header_company_id)
     return "unknown"
 
 
 def append_audit_log(entry: AuditLogEntry, audit_root: Path = DEFAULT_AUDIT_ROOT) -> Path:
-    company_id = _safe_company_id(entry.company_id)
-    audit_dir = audit_root / company_id
+    audit_dir = company_namespace_path(audit_root, entry.company_id)
     audit_dir.mkdir(parents=True, exist_ok=True)
     audit_path = audit_dir / "log.jsonl"
     with audit_path.open("a", encoding="utf-8") as handle:

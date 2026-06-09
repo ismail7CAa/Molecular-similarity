@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import re
 from dataclasses import dataclass
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -14,6 +13,8 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from rdkit import Chem, DataStructs, RDLogger
 from rdkit.Chem import rdFingerprintGenerator
 
+from molecular_similarity.tenant_namespace import company_namespace_path, safe_company_id
+
 
 DEFAULT_INDEX_ROOT = Path("indexes")
 DEFAULT_HISTORY_ROOT = Path("history")
@@ -22,7 +23,6 @@ MORGAN_GENERATOR = rdFingerprintGenerator.GetMorganGenerator(
     radius=2,
     fpSize=FINGERPRINT_SIZE,
 )
-COMPANY_ID_PATTERN = re.compile(r"[^a-zA-Z0-9_-]+")
 RDLogger.DisableLog("rdApp.warning")
 
 
@@ -43,14 +43,6 @@ class RADecisionHistoryRow:
     decision_date: str
     jurisdiction: str
     notes: str
-
-
-def safe_company_id(company_id: str) -> str:
-    normalized = COMPANY_ID_PATTERN.sub("_", company_id.strip())
-    normalized = normalized.strip("_").lower()
-    if not normalized:
-        raise ValueError("company_id must contain at least one alphanumeric character")
-    return normalized
 
 
 def standardize_molecule(
@@ -238,7 +230,7 @@ def write_company_ra_history(
         ) from error
 
     normalized_company_id = safe_company_id(company_id)
-    company_history_dir = history_root / normalized_company_id
+    company_history_dir = company_namespace_path(history_root, normalized_company_id)
     company_history_dir.mkdir(parents=True, exist_ok=True)
     history_path = company_history_dir / "ra_decisions.parquet"
     rows = [
@@ -283,7 +275,7 @@ def build_company_faiss_index(
         raise ValueError("No valid compounds found in uploaded library")
 
     normalized_company_id = safe_company_id(company_id)
-    company_index_dir = index_root / normalized_company_id
+    company_index_dir = company_namespace_path(index_root, normalized_company_id)
     company_index_dir.mkdir(parents=True, exist_ok=True)
 
     vectors = fingerprint_matrix(compounds)

@@ -24,6 +24,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I added FastAPI audit middleware that appends every prediction request/response context to company-specific JSONL logs before returning.
 - I added a company onboarding endpoint that accepts SDF or SMILES CSV libraries, standardizes compounds with RDKit, generates fingerprints, and stores company-scoped FAISS indexes.
 - I added a company RA history upload endpoint that stores past decisions as company-scoped Parquet for inference-time precedent context.
+- I added shared tenant namespace handling so each company ID maps to isolated index, history, and audit storage.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
@@ -172,6 +173,7 @@ Company onboarding:
 - Uploaded company libraries are stored as `indexes/{company_id}/faiss.index`.
 - Past RA decisions can be uploaded to `POST /onboarding/ra-history`.
 - Uploaded RA history is stored as `history/{company_id}/ra_decisions.parquet`.
+- Company IDs are normalized into safe per-company namespaces shared across `indexes/`, `history/`, and `audit/`.
 
 Model training:
 
