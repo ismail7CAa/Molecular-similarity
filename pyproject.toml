@@ -9,6 +9,7 @@ description = "Tools and experiments for molecular similarity workflows."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "fastapi>=0.115",
   "matplotlib>=3.8",
   "numpy>=1.26",
   "pydantic>=2.8",
@@ -27,6 +28,7 @@ molecular-similarity-threshold-model = "molecular_similarity.threshold_model:mai
 [project.optional-dependencies]
 dev = [
   "build>=1.2",
+  "httpx>=0.27",
   "pytest>=8.0",
   "ruff>=0.4",
 ]

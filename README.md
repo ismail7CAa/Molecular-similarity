@@ -21,6 +21,7 @@ I used this repository to cover the whole path from raw data to model evaluation
 - I added a deterministic RA decision router that combines model score, alert flags, and company config into a structured compliance decision.
 - I added a precedent matcher that looks up the most relevant approved analog from the enriched molecule dataset for RA context.
 - I added a Pydantic RA response schema so API outputs become full, auditable decision objects instead of binary score-only responses.
+- I added FastAPI audit middleware that appends every prediction request/response context to company-specific JSONL logs before returning.
 - I built three modeling paths:
   - a linear/logistic baseline
   - a threshold-based similarity classifier for the small prepared dataset
@@ -158,6 +159,10 @@ Compliance config validation:
 
 - `molecular-similarity-company-config configs/example_company_config.json`
 - `molecular-similarity-company-config --print-schema`
+
+Prediction audit logs:
+
+- FastAPI apps can attach `AuditLogMiddleware` to write append-only entries to `audit/{company_id}/log.jsonl`.
 
 Model training:
 
